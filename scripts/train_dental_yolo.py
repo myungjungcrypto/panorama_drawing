@@ -40,10 +40,25 @@ def download_dataset(api_key: str, version: int = 1):
         "dental-x-ray-panoramic-dataset"
     )
 
+    # 사용 가능한 버전 찾기
+    available_versions = project.versions()
+    if not available_versions:
+        print("ERROR: 사용 가능한 데이터셋 버전이 없습니다.")
+        sys.exit(1)
+
+    # 지정된 버전이 없으면 최신 버전 사용
+    target_version = version
+    version_numbers = [v.version.split("/")[-1] for v in available_versions]
+    print(f"사용 가능한 버전: {version_numbers}")
+
+    if str(target_version) not in version_numbers:
+        target_version = int(version_numbers[-1])
+        print(f"버전 {version}이 없어 최신 버전 {target_version} 사용")
+
     dataset_dir = TRAINING_DIR / "dataset"
     dataset_dir.mkdir(parents=True, exist_ok=True)
 
-    dataset = project.version(version).download("yolov8", location=str(dataset_dir))
+    dataset = project.version(target_version).download("yolov8", location=str(dataset_dir))
 
     print(f"\n다운로드 완료: {dataset_dir}")
     print(f"클래스: {dataset.classes}")
