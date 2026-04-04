@@ -1,19 +1,17 @@
 import { Tooth3DPosition } from '@/types/dental';
 
-// Dental arch follows a parabolic/elliptical curve
-// Upper arch is slightly wider than lower arch
 // Coordinate system: X = left/right, Y = up/down, Z = front/back
 
 interface ArchConfig {
-  width: number;      // half-width of the arch
-  depth: number;      // front-to-back depth
-  yOffset: number;    // vertical position
+  width: number;
+  depth: number;
+  yOffset: number;    // gum line vertical position
 }
 
-const UPPER_ARCH: ArchConfig = { width: 3.2, depth: 2.8, yOffset: 0.8 };
-const LOWER_ARCH: ArchConfig = { width: 2.9, depth: 2.5, yOffset: -0.8 };
+const UPPER_ARCH: ArchConfig = { width: 3.2, depth: 2.8, yOffset: 0.6 };
+const LOWER_ARCH: ArchConfig = { width: 2.9, depth: 2.5, yOffset: -0.6 };
 
-// Tooth widths (approximate relative sizes) for spacing
+// Tooth widths for spacing along the arch
 const TOOTH_WIDTHS: Record<number, number> = {
   1: 0.55,  // central incisor
   2: 0.45,  // lateral incisor
@@ -25,12 +23,46 @@ const TOOTH_WIDTHS: Record<number, number> = {
   8: 0.55,  // third molar
 };
 
+// Crown heights - how much the crown extends beyond the gum line
+// This creates the visible portion of each tooth
+const CROWN_HEIGHTS: Record<number, number> = {
+  1: 0.45,  // central incisor - tallest crown
+  2: 0.40,  // lateral incisor
+  3: 0.42,  // canine
+  4: 0.32,  // first premolar
+  5: 0.30,  // second premolar
+  6: 0.28,  // first molar - shorter crown
+  7: 0.25,  // second molar
+  8: 0.22,  // third molar - shortest
+};
+
+// Curve of Spee: vertical offset for each tooth position
+// Creates the characteristic curve where anterior teeth are lowest (upper) / highest (lower)
+// and posterior teeth gradually rise (upper) / descend (lower)
+// The curve is defined as a Y offset from the gum line
+function getCurveOfSpee(position: number, isUpper: boolean): number {
+  // Curve of Spee offsets (how far each tooth drops below/above gumline)
+  // Position 1 = central incisor (most offset), 8 = wisdom (least offset)
+  const speeOffsets: Record<number, number> = {
+    1: 0.50,   // central incisor - drops the most
+    2: 0.48,   // lateral incisor
+    3: 0.52,   // canine - tip of the curve (slight bump)
+    4: 0.40,   // first premolar - starts rising
+    5: 0.35,   // second premolar
+    6: 0.28,   // first molar
+    7: 0.22,   // second molar
+    8: 0.18,   // third molar - least offset, closest to gum
+  };
+
+  const offset = speeOffsets[position];
+  // Upper teeth: offset downward (negative Y), Lower teeth: offset upward (positive Y)
+  return isUpper ? -offset : offset;
+}
+
 function getArchPoint(
   t: number,
   config: ArchConfig
 ): { x: number; z: number; angle: number } {
-  // Parabolic arch: z = depth - (depth/width^2) * x^2
-  // Parameterized by t from -1 to 1
   const x = t * config.width;
   const z = config.depth * (1 - t * t);
 
@@ -42,27 +74,21 @@ function getArchPoint(
   return { x, z, angle };
 }
 
-// Distribute teeth along the arch curve
-// positions 1-8 from midline outward, for each side
 function computeToothPositions(
   config: ArchConfig,
   isUpper: boolean
 ): Map<number, Tooth3DPosition> {
   const positions = new Map<number, Tooth3DPosition>();
 
-  // Calculate cumulative widths to determine parameter t for each tooth
-  // Teeth go from midline (t~0) outward to back (t~±1)
   const totalHalfWidth = Object.values(TOOTH_WIDTHS).reduce((a, b) => a + b, 0);
 
-  // Build parameter positions for teeth 1-8 on right side (negative t)
-  // and left side (positive t)
   for (const side of ['right', 'left'] as const) {
     let cumulative = 0;
     for (let pos = 1; pos <= 8; pos++) {
       const w = TOOTH_WIDTHS[pos];
-      cumulative += w / 2; // center of tooth
-      const tNorm = cumulative / totalHalfWidth; // normalize to 0-1
-      const t = tNorm * 0.95; // don't go all the way to the edge
+      cumulative += w / 2;
+      const tNorm = cumulative / totalHalfWidth;
+      const t = tNorm * 0.95;
 
       const signedT = side === 'right' ? -t : t;
       const { x, z, angle } = getArchPoint(signedT, config);
@@ -74,14 +100,18 @@ function computeToothPositions(
 
       const rotY = side === 'right' ? -angle : angle;
 
+      // Apply Curve of Spee: shift tooth vertically from gum line
+      const speeOffset = getCurveOfSpee(pos, isUpper);
+      const y = config.yOffset + speeOffset;
+
       positions.set(fdi, {
         x,
-        y: config.yOffset,
+        y,
         z,
         rotationY: rotY,
       });
 
-      cumulative += w / 2; // move to next tooth start
+      cumulative += w / 2;
     }
   }
 
@@ -96,6 +126,11 @@ export const TOOTH_3D_POSITIONS: Map<number, Tooth3DPosition> = new Map([
   ...lowerPositions,
 ]);
 
+// Get the gum line Y position for label placement
+export function getGumLineY(isUpper: boolean): number {
+  return isUpper ? UPPER_ARCH.yOffset : LOWER_ARCH.yOffset;
+}
+
 // Generate arch curve points for rendering the gum mesh
 export function getArchCurvePoints(
   isUpper: boolean,
@@ -105,7 +140,7 @@ export function getArchCurvePoints(
   const points: Array<{ x: number; y: number; z: number }> = [];
 
   for (let i = 0; i <= segments; i++) {
-    const t = (i / segments) * 2 - 1; // -1 to 1
+    const t = (i / segments) * 2 - 1;
     const { x, z } = getArchPoint(t, config);
     points.push({ x, y: config.yOffset, z });
   }

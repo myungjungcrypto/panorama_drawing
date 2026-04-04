@@ -7,7 +7,7 @@ import { OrbitControls, Html } from '@react-three/drei';
 import ToothMesh from './ToothMesh';
 import GumMesh from './GumMesh';
 import { ALL_TEETH, TOOTH_MAP } from '@/lib/dental/toothData';
-import { TOOTH_3D_POSITIONS } from '@/lib/dental/archGeometry';
+import { TOOTH_3D_POSITIONS, getGumLineY } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
 
 type ViewPreset = 'front' | 'top' | 'right' | 'left';
@@ -24,14 +24,19 @@ const CAMERA_TARGET: [number, number, number] = [0, 0, 1.5];
 
 function ToothLabel({ fdi, showLabels }: { fdi: number; showLabels: boolean }) {
   const pos = TOOTH_3D_POSITIONS.get(fdi);
+  const info = TOOTH_MAP[fdi];
   const status = useTeethState((s) => s.teeth[fdi]);
-  if (!pos || !showLabels) return null;
+  if (!pos || !showLabels || !info) return null;
 
   const isMissing = status === 'missing';
+  const isUpper = info.quadrant <= 2;
+  const gumY = getGumLineY(isUpper);
+  // Upper: labels above gum (higher Y), Lower: labels below gum (lower Y)
+  const labelY = isUpper ? gumY + 0.45 : gumY - 0.45;
 
   return (
     <Html
-      position={[pos.x, pos.y + 0.55, pos.z]}
+      position={[pos.x, labelY, pos.z]}
       center
       distanceFactor={8}
       style={{ pointerEvents: 'none' }}
