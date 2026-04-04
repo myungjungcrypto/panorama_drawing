@@ -20,7 +20,7 @@ const CAMERA_POSITIONS: Record<ViewPreset, [number, number, number]> = {
   left: [8, 1, 1],
 };
 
-const CAMERA_TARGET: [number, number, number] = [0, 0, 1.5];
+const CAMERA_TARGET: [number, number, number] = [0, 0, 1.2];
 
 function ToothLabel({ fdi, showLabels }: { fdi: number; showLabels: boolean }) {
   const pos = TOOTH_3D_POSITIONS.get(fdi);
@@ -32,7 +32,7 @@ function ToothLabel({ fdi, showLabels }: { fdi: number; showLabels: boolean }) {
   const isUpper = info.quadrant <= 2;
   const gumY = getGumLineY(isUpper);
   // Upper: labels above gum (higher Y), Lower: labels below gum (lower Y)
-  const labelY = isUpper ? gumY + 0.45 : gumY - 0.45;
+  const labelY = isUpper ? gumY + 0.65 : gumY - 0.65;
 
   return (
     <Html

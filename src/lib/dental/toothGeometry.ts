@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { ToothType } from '@/types/dental';
 
-const SEG = 16; // segment count for smoother shapes
+const SEG = 16;
 
+// Crown-only dimensions (no visible roots - they're inside the gum)
 const TOOTH_DIMENSIONS: Record<ToothType, { w: number; h: number; d: number }> = {
-  incisor:  { w: 0.35, h: 0.65, d: 0.20 },
-  canine:   { w: 0.32, h: 0.70, d: 0.25 },
-  premolar: { w: 0.38, h: 0.55, d: 0.35 },
-  molar:    { w: 0.55, h: 0.50, d: 0.45 },
+  incisor:  { w: 0.32, h: 0.48, d: 0.16 },
+  canine:   { w: 0.30, h: 0.50, d: 0.20 },
+  premolar: { w: 0.34, h: 0.36, d: 0.32 },
+  molar:    { w: 0.48, h: 0.32, d: 0.42 },
 };
 
 export function createToothGeometry(type: ToothType): THREE.BufferGeometry {
@@ -21,104 +22,116 @@ export function createToothGeometry(type: ToothType): THREE.BufferGeometry {
 }
 
 function createIncisorGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // Chisel-shaped crown using a rounded box-like cylinder
+  // Flat blade-like crown, wider at incisal edge, narrower at cervical
+  // Use a tapered box shape
   const crown = new THREE.CylinderGeometry(
-    dim.w * 0.45, dim.w * 0.5, dim.h * 0.45, SEG, 1
+    dim.w * 0.48,   // top radius (incisal edge - slightly narrower)
+    dim.w * 0.44,   // bottom radius (cervical/gum line)
+    dim.h,
+    SEG, 1
   );
-  // Flatten to make it more blade-like
-  scaleGeometryAxis(crown, 'z', dim.d / dim.w * 0.7);
-  crown.translate(0, dim.h * 0.22, 0);
+  // Flatten front-to-back to make blade shape
+  scaleAxis(crown, 'z', dim.d / dim.w * 0.55);
 
-  // Rounded top edge
-  const top = new THREE.SphereGeometry(dim.w * 0.45, SEG, 8, 0, Math.PI * 2, 0, Math.PI * 0.35);
-  scaleGeometryAxis(top, 'z', dim.d / dim.w * 0.7);
-  top.translate(0, dim.h * 0.44, 0);
+  // Smooth incisal edge
+  const edge = new THREE.SphereGeometry(
+    dim.w * 0.48, SEG, 8,
+    0, Math.PI * 2, 0, Math.PI * 0.3
+  );
+  scaleAxis(edge, 'z', dim.d / dim.w * 0.55);
+  edge.translate(0, dim.h * 0.5, 0);
 
-  const root = new THREE.CylinderGeometry(dim.w * 0.18, dim.w * 0.08, dim.h * 0.5, SEG);
-  root.translate(0, -dim.h * 0.25, 0);
-
-  let geo = mergeGeometries(crown, top);
-  geo = mergeGeometries(geo, root);
+  const geo = mergeGeometries(crown, edge);
   return geo;
 }
 
 function createCanineGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // Pointed crown
-  const crown = new THREE.ConeGeometry(dim.w * 0.38, dim.h * 0.45, SEG);
-  crown.translate(0, dim.h * 0.32, 0);
+  // Pointed crown, conical top with cylindrical base
+  const base = new THREE.CylinderGeometry(
+    dim.w * 0.40,
+    dim.w * 0.42,
+    dim.h * 0.55,
+    SEG, 1
+  );
+  scaleAxis(base, 'z', dim.d / dim.w * 0.65);
+  base.translate(0, -dim.h * 0.05, 0);
 
-  const base = new THREE.CylinderGeometry(dim.w * 0.38, dim.w * 0.32, dim.h * 0.2, SEG);
-  base.translate(0, dim.h * 0.05, 0);
+  const tip = new THREE.ConeGeometry(
+    dim.w * 0.38, dim.h * 0.5, SEG
+  );
+  scaleAxis(tip, 'z', dim.d / dim.w * 0.65);
+  tip.translate(0, dim.h * 0.38, 0);
 
-  const root = new THREE.CylinderGeometry(dim.w * 0.2, dim.w * 0.08, dim.h * 0.5, SEG);
-  root.translate(0, -dim.h * 0.28, 0);
-
-  let geo = mergeGeometries(crown, base);
-  geo = mergeGeometries(geo, root);
-  return geo;
+  return mergeGeometries(base, tip);
 }
 
 function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // Rounded base
-  const base = new THREE.CylinderGeometry(dim.w * 0.42, dim.w * 0.4, dim.h * 0.3, SEG);
-  scaleGeometryAxis(base, 'z', dim.d / dim.w * 0.9);
-  base.translate(0, dim.h * 0.05, 0);
+  // Wider crown with 2 cusps on top
+  const base = new THREE.CylinderGeometry(
+    dim.w * 0.44,
+    dim.w * 0.42,
+    dim.h * 0.6,
+    SEG, 1
+  );
+  scaleAxis(base, 'z', dim.d / dim.w);
+  base.translate(0, -dim.h * 0.05, 0);
 
-  // Two cusps
-  const cusp1 = new THREE.SphereGeometry(dim.w * 0.24, SEG, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
-  cusp1.translate(-dim.w * 0.1, dim.h * 0.2, 0);
+  // Two cusps (buccal and lingual)
+  const cusp1 = new THREE.SphereGeometry(
+    dim.w * 0.25, SEG, 10,
+    0, Math.PI * 2, 0, Math.PI * 0.5
+  );
+  cusp1.translate(0, dim.h * 0.25, -dim.d * 0.12);
 
-  const cusp2 = new THREE.SphereGeometry(dim.w * 0.22, SEG, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
-  cusp2.translate(dim.w * 0.1, dim.h * 0.18, 0);
-
-  const root = new THREE.CylinderGeometry(dim.w * 0.18, dim.w * 0.08, dim.h * 0.42, SEG);
-  root.translate(0, -dim.h * 0.3, 0);
+  const cusp2 = new THREE.SphereGeometry(
+    dim.w * 0.23, SEG, 10,
+    0, Math.PI * 2, 0, Math.PI * 0.5
+  );
+  cusp2.translate(0, dim.h * 0.22, dim.d * 0.12);
 
   let geo = mergeGeometries(base, cusp1);
   geo = mergeGeometries(geo, cusp2);
-  geo = mergeGeometries(geo, root);
   return geo;
 }
 
 function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // Wide rounded base
-  const base = new THREE.CylinderGeometry(dim.w * 0.45, dim.w * 0.42, dim.h * 0.28, SEG);
-  scaleGeometryAxis(base, 'z', dim.d / dim.w);
-  base.translate(0, dim.h * 0.04, 0);
+  // Wide, blocky crown with 4 cusps
+  const base = new THREE.CylinderGeometry(
+    dim.w * 0.46,
+    dim.w * 0.44,
+    dim.h * 0.55,
+    SEG, 1
+  );
+  scaleAxis(base, 'z', dim.d / dim.w);
+  base.translate(0, -dim.h * 0.05, 0);
 
   // Four cusps
-  const cuspPositions = [
-    [-dim.w * 0.14, dim.h * 0.18, -dim.d * 0.14],
-    [dim.w * 0.14, dim.h * 0.18, -dim.d * 0.14],
-    [-dim.w * 0.14, dim.h * 0.17, dim.d * 0.14],
-    [dim.w * 0.14, dim.h * 0.17, dim.d * 0.14],
+  const cuspR = dim.w * 0.20;
+  const cusps = [
+    { x: -dim.w * 0.14, z: -dim.d * 0.14, r: cuspR, h: dim.h * 0.24 },
+    { x:  dim.w * 0.14, z: -dim.d * 0.14, r: cuspR * 0.95, h: dim.h * 0.22 },
+    { x: -dim.w * 0.14, z:  dim.d * 0.14, r: cuspR * 0.9, h: dim.h * 0.21 },
+    { x:  dim.w * 0.14, z:  dim.d * 0.14, r: cuspR * 0.85, h: dim.h * 0.20 },
   ];
 
   let geo: THREE.BufferGeometry = base;
-  for (const [cx, cy, cz] of cuspPositions) {
-    const cusp = new THREE.SphereGeometry(dim.w * 0.2, SEG, 10, 0, Math.PI * 2, 0, Math.PI * 0.5);
-    cusp.translate(cx, cy, cz);
+  for (const c of cusps) {
+    const cusp = new THREE.SphereGeometry(
+      c.r, SEG, 10,
+      0, Math.PI * 2, 0, Math.PI * 0.5
+    );
+    cusp.translate(c.x, c.h, c.z);
     geo = mergeGeometries(geo, cusp);
   }
 
-  // Two roots (wider apart)
-  const root1 = new THREE.CylinderGeometry(dim.w * 0.14, dim.w * 0.07, dim.h * 0.38, SEG);
-  root1.translate(-dim.w * 0.16, -dim.h * 0.28, 0);
-
-  const root2 = new THREE.CylinderGeometry(dim.w * 0.14, dim.w * 0.07, dim.h * 0.38, SEG);
-  root2.translate(dim.w * 0.16, -dim.h * 0.28, 0);
-
-  geo = mergeGeometries(geo, root1);
-  geo = mergeGeometries(geo, root2);
   return geo;
 }
 
-function scaleGeometryAxis(geo: THREE.BufferGeometry, axis: 'x' | 'y' | 'z', scale: number) {
+function scaleAxis(geo: THREE.BufferGeometry, axis: 'x' | 'y' | 'z', scale: number) {
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
   const idx = axis === 'x' ? 0 : axis === 'y' ? 1 : 2;
   for (let i = 0; i < pos.count; i++) {
-    const val = pos.getComponent(i, idx);
-    pos.setComponent(i, idx, val * scale);
+    pos.setComponent(i, idx, pos.getComponent(i, idx) * scale);
   }
   pos.needsUpdate = true;
 }
@@ -128,19 +141,16 @@ function mergeGeometries(
   b: THREE.BufferGeometry
 ): THREE.BufferGeometry {
   const merged = new THREE.BufferGeometry();
-
   const posA = a.getAttribute('position') as THREE.BufferAttribute;
   const posB = b.getAttribute('position') as THREE.BufferAttribute;
 
   const positions = new Float32Array(posA.count * 3 + posB.count * 3);
   positions.set(posA.array as Float32Array, 0);
   positions.set(posB.array as Float32Array, posA.count * 3);
-
   merged.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
   const idxA = a.index;
   const idxB = b.index;
-
   if (idxA && idxB) {
     const indices = new Uint32Array(idxA.count + idxB.count);
     indices.set(idxA.array as Uint32Array, 0);
