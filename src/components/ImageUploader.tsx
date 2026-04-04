@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useCallback, DragEvent, ChangeEvent } from 'react';
+import { useState, useCallback, useRef, DragEvent, ChangeEvent } from 'react';
 import { useTeethState } from '@/hooks/useTeethState';
 import { ToothStatus } from '@/types/dental';
+
+type AnalysisMode = 'cloud' | 'local';
 
 export default function ImageUploader() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -10,6 +12,9 @@ export default function ImageUploader() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [analyzed, setAnalyzed] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string>('');
+  const [localModelReady, setLocalModelReady] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
   const setToothStatus = useTeethState((s) => s.setToothStatus);
   const resetAll = useTeethState((s) => s.resetAll);
@@ -44,11 +49,13 @@ export default function ImageUploader() {
     [handleFile]
   );
 
-  const handleAnalyze = useCallback(async () => {
+  // Cloud analysis (Claude API)
+  const analyzeCloud = useCallback(async () => {
     if (!preview) return;
 
     setAnalyzing(true);
     setAnalysisError(null);
+    setStatusMsg('Claude API로 분석 중... (10~20초)');
 
     try {
       const res = await fetch('/api/analyze', {
@@ -58,28 +65,57 @@ export default function ImageUploader() {
       });
 
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '분석 실패');
 
-      if (!res.ok) {
-        throw new Error(data.error || '분석 실패');
-      }
-
-      // Apply results to teeth state
-      resetAll();
-      const result = data.result as Record<string, string>;
-      for (const [fdiStr, status] of Object.entries(result)) {
-        const fdi = parseInt(fdiStr);
-        if (fdi >= 11 && fdi <= 48 && isValidStatus(status)) {
-          setToothStatus(fdi, status as ToothStatus);
-        }
-      }
-
+      applyResults(data.result);
       setAnalyzed(true);
+      setStatusMsg('');
     } catch (err) {
       setAnalysisError(err instanceof Error ? err.message : '분석 중 오류 발생');
     } finally {
       setAnalyzing(false);
     }
-  }, [preview, resetAll, setToothStatus]);
+  }, [preview]);
+
+  // Local analysis (ONNX model in browser)
+  const analyzeLocal = useCallback(async () => {
+    if (!preview || !imgRef.current) return;
+
+    setAnalyzing(true);
+    setAnalysisError(null);
+
+    try {
+      const { loadModel, isModelLoaded, detectTeeth } = await import('@/lib/detection/onnxInference');
+
+      if (!isModelLoaded()) {
+        setStatusMsg('ONNX 모델 로딩 중...');
+        const loaded = await loadModel((msg) => setStatusMsg(msg));
+        if (!loaded) throw new Error('모델 로딩 실패. public/onnx/ 폴더에 모델 파일이 있는지 확인하세요.');
+        setLocalModelReady(true);
+      }
+
+      setStatusMsg('치아 감지 중...');
+      const result = await detectTeeth(imgRef.current);
+
+      applyResults(result);
+      setAnalyzed(true);
+      setStatusMsg('');
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : '로컬 분석 중 오류');
+    } finally {
+      setAnalyzing(false);
+    }
+  }, [preview]);
+
+  const applyResults = useCallback((result: Record<string | number, string>) => {
+    resetAll();
+    for (const [fdiStr, status] of Object.entries(result)) {
+      const fdi = parseInt(String(fdiStr));
+      if (fdi >= 11 && fdi <= 48 && isValidStatus(status)) {
+        setToothStatus(fdi, status as ToothStatus);
+      }
+    }
+  }, [resetAll, setToothStatus]);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -89,15 +125,18 @@ export default function ImageUploader() {
         <div>
           <div className="relative">
             <img
+              ref={imgRef}
               src={preview}
               alt="파노라마 X-ray"
               className="w-full rounded-lg border border-gray-200"
+              crossOrigin="anonymous"
             />
             <button
               onClick={() => {
                 setPreview(null);
                 setAnalyzed(false);
                 setAnalysisError(null);
+                setStatusMsg('');
               }}
               className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-md hover:bg-red-600 cursor-pointer"
             >
@@ -105,34 +144,51 @@ export default function ImageUploader() {
             </button>
           </div>
 
-          {/* Analysis button */}
-          <button
-            onClick={handleAnalyze}
-            disabled={analyzing}
-            className={`
-              mt-3 w-full py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
-              ${analyzing
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : analyzed
-                  ? 'bg-green-500 text-white hover:bg-green-600'
+          {/* Analysis buttons */}
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={analyzeLocal}
+              disabled={analyzing}
+              className={`
+                flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
+                ${analyzing
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                }
+              `}
+            >
+              {analyzing ? '분석 중...' : '로컬 AI 분석'}
+            </button>
+            <button
+              onClick={analyzeCloud}
+              disabled={analyzing}
+              className={`
+                flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
+                ${analyzing
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
-              }
-            `}
-          >
-            {analyzing ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                AI 분석 중... (10~20초)
-              </span>
-            ) : analyzed ? (
-              '분석 완료 (다시 분석)'
-            ) : (
-              'AI 자동 분석'
-            )}
-          </button>
+                }
+              `}
+            >
+              {analyzing ? '분석 중...' : '클라우드 분석'}
+            </button>
+          </div>
+
+          <div className="mt-1 flex justify-between text-[10px] text-gray-400">
+            <span>ONNX 모델 (개인정보 보호)</span>
+            <span>Claude API (정확도 높음)</span>
+          </div>
+
+          {/* Status messages */}
+          {analyzing && statusMsg && (
+            <div className="mt-2 flex items-center justify-center gap-2 text-sm text-blue-600">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              {statusMsg}
+            </div>
+          )}
 
           {analysisError && (
             <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
@@ -142,7 +198,7 @@ export default function ImageUploader() {
 
           {analyzed && !analysisError && (
             <p className="mt-2 text-xs text-green-600 text-center">
-              분석 결과가 3D 뷰에 적용되었습니다. 수동으로 보정할 수 있습니다.
+              분석 완료! 결과를 확인하고 수동으로 보정하세요.
             </p>
           )}
         </div>
