@@ -31,7 +31,7 @@ export default function Home() {
       {/* Main content */}
       <div className="flex-1 flex overflow-hidden p-4 gap-4">
         {/* Left panel: Upload + Chart */}
-        <div className="w-[420px] shrink-0 flex flex-col gap-4 overflow-y-auto">
+        <div className="w-[560px] shrink-0 flex flex-col gap-4 overflow-y-auto">
           <ImageUploader />
           <DentalChart2D />
         </div>
