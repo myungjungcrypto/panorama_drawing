@@ -1,6 +1,6 @@
 export type ToothType = 'incisor' | 'canine' | 'premolar' | 'molar';
 
-export type ToothStatus = 'present' | 'missing' | 'implant' | 'crown';
+export type ToothStatus = 'present' | 'missing' | 'implant' | 'crown' | 'bridge';
 
 export type Quadrant = 1 | 2 | 3 | 4;
 

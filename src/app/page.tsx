@@ -48,18 +48,30 @@ export default function Home() {
           {/* Legend */}
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">범례</h3>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs">
                 <div className="w-4 h-4 rounded bg-[#f5f0e8] border border-gray-300" />
-                <span className="text-gray-600">존재하는 치아</span>
+                <span className="text-gray-600">존재</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <div className="w-4 h-4 rounded border-2 border-dashed border-red-300 bg-red-50" />
-                <span className="text-gray-600">상실된 치아</span>
+                <span className="text-gray-600">상실</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-4 h-4 rounded bg-[#8899aa] border border-gray-400" />
+                <span className="text-gray-600">임플란트</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-4 h-4 rounded bg-[#ffd700] border border-yellow-400" />
+                <span className="text-gray-600">크라운</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-4 h-4 rounded bg-[#81c784] border border-emerald-400" />
+                <span className="text-gray-600">브릿지</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <div className="w-4 h-4 rounded bg-blue-400" />
-                <span className="text-gray-600">선택된 치아</span>
+                <span className="text-gray-600">선택됨</span>
               </div>
             </div>
           </div>
@@ -68,9 +80,10 @@ export default function Home() {
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <h3 className="text-sm font-semibold text-gray-700 mb-2">사용법</h3>
             <ul className="text-xs text-gray-500 space-y-1">
-              <li>- 좌측 차트에서 치아 클릭 → 상실 토글</li>
-              <li>- 3D 뷰에서 치아 더블클릭 → 상실 토글</li>
-              <li>- 마우스 드래그 → 3D 회전</li>
+              <li>- 차트 클릭 → 존재/상실 토글</li>
+              <li>- 3D 더블클릭 → 존재/상실 토글</li>
+              <li>- 우측 패널 → 세부 상태 변경</li>
+              <li>- 드래그 → 3D 회전</li>
               <li>- 스크롤 → 확대/축소</li>
             </ul>
           </div>

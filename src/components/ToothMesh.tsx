@@ -7,9 +7,62 @@ import { createToothGeometry } from '@/lib/dental/toothGeometry';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
+import { ToothStatus } from '@/types/dental';
 
 interface ToothMeshProps {
   fdi: number;
+}
+
+// Status-based color and material config
+function getStatusAppearance(status: ToothStatus, isSelected: boolean, isHovered: boolean) {
+  const base = {
+    color: '#f5f0e8',
+    opacity: 1,
+    wireframe: false,
+    transparent: false,
+    roughness: 0.3,
+    metalness: 0.05,
+    side: THREE.FrontSide as THREE.Side,
+  };
+
+  switch (status) {
+    case 'missing':
+      return {
+        ...base,
+        color: '#ff4444',
+        opacity: isHovered ? 0.4 : 0.15,
+        wireframe: true,
+        transparent: true,
+        roughness: 1,
+        metalness: 0,
+        side: THREE.DoubleSide as THREE.Side,
+      };
+    case 'implant':
+      return {
+        ...base,
+        color: isSelected ? '#4dabf7' : isHovered ? '#b0b0b0' : '#8899aa',
+        metalness: 0.6,
+        roughness: 0.15,
+      };
+    case 'crown':
+      return {
+        ...base,
+        color: isSelected ? '#4dabf7' : isHovered ? '#fff5cc' : '#ffd700',
+        metalness: 0.3,
+        roughness: 0.2,
+      };
+    case 'bridge':
+      return {
+        ...base,
+        color: isSelected ? '#4dabf7' : isHovered ? '#c8e6c9' : '#81c784',
+        metalness: 0.15,
+        roughness: 0.25,
+      };
+    default: // present
+      if (isSelected) return { ...base, color: '#4dabf7' };
+      if (isHovered) return { ...base, color: '#a5d8ff' };
+      return base;
+  }
 }
 
 export default function ToothMesh({ fdi }: ToothMeshProps) {
@@ -31,9 +84,9 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
 
   if (!pos || !info) return null;
 
-  const isMissing = status === 'missing';
   const isSelected = selectedTooth === fdi;
   const isHovered = hoveredTooth === fdi;
+  const appearance = getStatusAppearance(status, isSelected, isHovered);
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
@@ -45,28 +98,15 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
     toggleTooth(fdi);
   };
 
-  // Determine material properties based on state
-  let color = '#f5f0e8';
-  let opacity = 1;
-  let wireframe = false;
-  let transparent = false;
-
-  if (isMissing) {
-    color = '#ff4444';
-    opacity = isHovered ? 0.4 : 0.15;
-    wireframe = true;
-    transparent = true;
-  } else if (isSelected) {
-    color = '#4dabf7';
-  } else if (isHovered) {
-    color = '#a5d8ff';
-  }
+  // Upper teeth (quadrants 1,2): flip upside down so roots point up, crowns face down
+  const isUpper = info.quadrant <= 2;
+  const rotationX = isUpper ? Math.PI : 0;
 
   return (
     <mesh
       ref={meshRef}
       position={[pos.x, pos.y, pos.z]}
-      rotation={[0, pos.rotationY, 0]}
+      rotation={[rotationX, pos.rotationY, 0]}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onPointerOver={(e) => { e.stopPropagation(); setHoveredTooth(fdi); }}
@@ -74,14 +114,14 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
       geometry={geometry}
     >
       <meshStandardMaterial
-        key={`${fdi}-${isMissing ? 'missing' : 'present'}`}
-        color={color}
-        transparent={transparent}
-        opacity={opacity}
-        wireframe={wireframe}
-        roughness={isMissing ? 1 : 0.3}
-        metalness={isMissing ? 0 : 0.05}
-        side={isMissing ? THREE.DoubleSide : THREE.FrontSide}
+        key={`${fdi}-${status}`}
+        color={appearance.color}
+        transparent={appearance.transparent}
+        opacity={appearance.opacity}
+        wireframe={appearance.wireframe}
+        roughness={appearance.roughness}
+        metalness={appearance.metalness}
+        side={appearance.side}
       />
     </mesh>
   );

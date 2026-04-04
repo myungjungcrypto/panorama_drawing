@@ -27,12 +27,12 @@ export const useTeethState = create<TeethState>((set) => ({
   hoveredTooth: null,
 
   toggleTooth: (fdi) =>
-    set((state) => ({
-      teeth: {
-        ...state.teeth,
-        [fdi]: state.teeth[fdi] === 'present' ? 'missing' : 'present',
-      },
-    })),
+    set((state) => {
+      const current = state.teeth[fdi];
+      // Cycle: present → missing → present
+      const next: ToothStatus = current === 'present' ? 'missing' : 'present';
+      return { teeth: { ...state.teeth, [fdi]: next } };
+    }),
 
   setToothStatus: (fdi, status) =>
     set((state) => ({

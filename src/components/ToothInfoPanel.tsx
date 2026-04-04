@@ -2,72 +2,98 @@
 
 import { useTeethState } from '@/hooks/useTeethState';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
+import { ToothStatus } from '@/types/dental';
+
+const STATUS_CONFIG: Record<ToothStatus, { label: string; color: string; bg: string; border: string }> = {
+  present:  { label: '존재',      color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-200' },
+  missing:  { label: '상실',      color: 'text-red-500',   bg: 'bg-red-50',    border: 'border-red-200' },
+  implant:  { label: '임플란트',  color: 'text-blue-600',  bg: 'bg-blue-50',   border: 'border-blue-200' },
+  crown:    { label: '크라운',    color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
+  bridge:   { label: '브릿지',    color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+};
+
+const ALL_STATUSES: ToothStatus[] = ['present', 'missing', 'implant', 'crown', 'bridge'];
+
+const TYPE_NAMES: Record<string, string> = {
+  incisor: '절치',
+  canine: '견치',
+  premolar: '소구치',
+  molar: '대구치',
+};
 
 export default function ToothInfoPanel() {
   const selectedTooth = useTeethState((s) => s.selectedTooth);
   const hoveredTooth = useTeethState((s) => s.hoveredTooth);
   const teeth = useTeethState((s) => s.teeth);
-  const toggleTooth = useTeethState((s) => s.toggleTooth);
+  const setToothStatus = useTeethState((s) => s.setToothStatus);
 
   const activeFdi = hoveredTooth ?? selectedTooth;
   const info = activeFdi ? TOOTH_MAP[activeFdi] : null;
   const status = activeFdi ? teeth[activeFdi] : null;
 
-  if (!activeFdi || !info) {
+  if (!activeFdi || !info || !status) {
     return (
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
         <h3 className="text-sm font-semibold text-gray-700 mb-2">치아 정보</h3>
         <p className="text-xs text-gray-400">
-          3D 뷰에서 치아를 클릭하거나 호버하면 정보가 표시됩니다.
+          치아를 클릭하거나 호버하면 정보가 표시됩니다.
         </p>
       </div>
     );
   }
 
-  const typeNames: Record<string, string> = {
-    incisor: '절치',
-    canine: '견치',
-    premolar: '소구치',
-    molar: '대구치',
-  };
+  const currentConfig = STATUS_CONFIG[status];
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">치아 정보</h3>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">FDI 번호</span>
           <span className="font-bold text-gray-800">#{activeFdi}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">이름</span>
-          <span className="text-gray-800">{info.nameKo}</span>
+          <span className="text-gray-800 text-right text-xs leading-5">{info.nameKo}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">유형</span>
-          <span className="text-gray-800">{typeNames[info.type]}</span>
+          <span className="text-gray-800">{TYPE_NAMES[info.type]}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-gray-500">상태</span>
-          <span className={status === 'missing' ? 'text-red-500 font-semibold' : 'text-green-600 font-semibold'}>
-            {status === 'missing' ? '상실' : '존재'}
+          <span className={`font-semibold ${currentConfig.color}`}>
+            {currentConfig.label}
           </span>
         </div>
       </div>
 
-      <button
-        onClick={() => toggleTooth(activeFdi)}
-        className={`
-          mt-3 w-full py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer
-          ${status === 'missing'
-            ? 'bg-green-50 text-green-600 hover:bg-green-100 border border-green-200'
-            : 'bg-red-50 text-red-500 hover:bg-red-100 border border-red-200'
-          }
-        `}
-      >
-        {status === 'missing' ? '존재로 변경' : '상실로 변경'}
-      </button>
+      {/* Status buttons */}
+      <div className="mt-3 pt-3 border-t border-gray-100">
+        <p className="text-[10px] text-gray-400 mb-2">상태 변경:</p>
+        <div className="grid grid-cols-2 gap-1">
+          {ALL_STATUSES.map((s) => {
+            const config = STATUS_CONFIG[s];
+            const isActive = status === s;
+            return (
+              <button
+                key={s}
+                onClick={() => setToothStatus(activeFdi, s)}
+                className={`
+                  py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer border
+                  ${isActive
+                    ? `${config.bg} ${config.color} ${config.border} ring-1 ring-offset-1 ring-current`
+                    : `bg-white text-gray-500 border-gray-200 hover:${config.bg}`
+                  }
+                `}
+              >
+                {config.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
