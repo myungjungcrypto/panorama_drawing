@@ -45,34 +45,22 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
     toggleTooth(fdi);
   };
 
-  if (isMissing) {
-    // Render a translucent outline for missing teeth
-    return (
-      <mesh
-        ref={meshRef}
-        position={[pos.x, pos.y, pos.z]}
-        rotation={[0, pos.rotationY, 0]}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onPointerOver={(e) => { e.stopPropagation(); setHoveredTooth(fdi); }}
-        onPointerOut={() => setHoveredTooth(null)}
-      >
-        <primitive object={geometry} attach="geometry" />
-        <meshStandardMaterial
-          color="#ff4444"
-          transparent
-          opacity={isHovered ? 0.4 : 0.15}
-          wireframe
-          side={THREE.DoubleSide}
-        />
-      </mesh>
-    );
-  }
+  // Determine material properties based on state
+  let color = '#f5f0e8';
+  let opacity = 1;
+  let wireframe = false;
+  let transparent = false;
 
-  // Present tooth
-  let color = '#f5f0e8'; // natural tooth color
-  if (isSelected) color = '#4dabf7';
-  else if (isHovered) color = '#a5d8ff';
+  if (isMissing) {
+    color = '#ff4444';
+    opacity = isHovered ? 0.4 : 0.15;
+    wireframe = true;
+    transparent = true;
+  } else if (isSelected) {
+    color = '#4dabf7';
+  } else if (isHovered) {
+    color = '#a5d8ff';
+  }
 
   return (
     <mesh
@@ -83,12 +71,17 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
       onDoubleClick={handleDoubleClick}
       onPointerOver={(e) => { e.stopPropagation(); setHoveredTooth(fdi); }}
       onPointerOut={() => setHoveredTooth(null)}
+      geometry={geometry}
     >
-      <primitive object={geometry} attach="geometry" />
       <meshStandardMaterial
+        key={`${fdi}-${isMissing ? 'missing' : 'present'}`}
         color={color}
-        roughness={0.3}
-        metalness={0.05}
+        transparent={transparent}
+        opacity={opacity}
+        wireframe={wireframe}
+        roughness={isMissing ? 1 : 0.3}
+        metalness={isMissing ? 0 : 0.05}
+        side={isMissing ? THREE.DoubleSide : THREE.FrontSide}
       />
     </mesh>
   );
