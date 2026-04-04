@@ -61,7 +61,6 @@ def download_dataset(api_key: str, version: int = 1):
     dataset = project.version(target_version).download("yolov8", location=str(dataset_dir))
 
     print(f"\n다운로드 완료: {dataset_dir}")
-    print(f"클래스: {dataset.classes}")
     return dataset_dir
 
 
