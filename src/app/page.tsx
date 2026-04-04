@@ -80,11 +80,12 @@ export default function Home() {
           <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
             <h3 className="text-sm font-semibold text-gray-700 mb-2">사용법</h3>
             <ul className="text-xs text-gray-500 space-y-1">
-              <li>- 차트 클릭 → 존재/상실 토글</li>
-              <li>- 3D 더블클릭 → 존재/상실 토글</li>
+              <li>1. 파노라마 업로드</li>
+              <li>2. &quot;AI 자동 분석&quot; 클릭</li>
+              <li>3. 결과 확인 후 수동 보정</li>
+              <li className="mt-1 pt-1 border-t border-gray-100">- 차트 클릭 → 존재/상실 토글</li>
               <li>- 우측 패널 → 세부 상태 변경</li>
               <li>- 드래그 → 3D 회전</li>
-              <li>- 스크롤 → 확대/축소</li>
             </ul>
           </div>
         </div>
