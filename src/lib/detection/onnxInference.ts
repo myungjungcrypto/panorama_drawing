@@ -204,16 +204,18 @@ function iou(a: Detection['bbox'], b: Detection['bbox']): number {
 // Panoramic X-ray: expected normalized X positions for each FDI tooth
 // Image left = patient right (Q1 upper, Q4 lower)
 // Image right = patient left (Q2 upper, Q3 lower)
-// These are approximate center X positions normalized to 0-1
+// Panoramic images are typically wider than tall, teeth occupy ~80% of width
+// Positions adjusted based on real panoramic anatomy
 const TOOTH_X_POSITIONS: Record<number, number> = {
   // Upper right (Q1): left side of image, 18→11
-  18: 0.04, 17: 0.10, 16: 0.16, 15: 0.22, 14: 0.27, 13: 0.32, 12: 0.38, 11: 0.44,
+  18: 0.06, 17: 0.11, 16: 0.17, 15: 0.22, 14: 0.27, 13: 0.32, 12: 0.39, 11: 0.45,
   // Upper left (Q2): right side of image, 21→28
-  21: 0.56, 22: 0.62, 23: 0.68, 24: 0.73, 25: 0.78, 26: 0.84, 27: 0.90, 28: 0.96,
+  21: 0.55, 22: 0.61, 23: 0.68, 24: 0.73, 25: 0.78, 26: 0.83, 27: 0.89, 28: 0.94,
   // Lower left (Q3): right side of image, 31→38
-  31: 0.56, 32: 0.62, 33: 0.68, 34: 0.73, 35: 0.78, 36: 0.84, 37: 0.90, 38: 0.96,
+  // Note: lower teeth positions mirror upper but the arch is narrower
+  31: 0.54, 32: 0.59, 33: 0.64, 34: 0.69, 35: 0.74, 36: 0.79, 37: 0.85, 38: 0.91,
   // Lower right (Q4): left side of image, 41→48
-  41: 0.44, 42: 0.38, 43: 0.32, 44: 0.27, 45: 0.22, 46: 0.16, 47: 0.10, 48: 0.04,
+  41: 0.46, 42: 0.41, 43: 0.36, 44: 0.31, 45: 0.26, 46: 0.21, 47: 0.15, 48: 0.09,
 };
 
 function mapDetectionsToTeeth(detections: Detection[]): Record<number, ToothStatus> {
@@ -230,7 +232,8 @@ function mapDetectionsToTeeth(detections: Detection[]): Record<number, ToothStat
 
   for (const det of detections) {
     const centerY = det.bbox.y + det.bbox.h / 2;
-    if (centerY < 0.55) {
+    // Upper/lower jaw boundary: typically around 47-50% of image height
+    if (centerY < 0.48) {
       upperDets.push(det);
     } else {
       lowerDets.push(det);
