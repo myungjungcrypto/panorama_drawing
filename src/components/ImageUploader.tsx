@@ -3,8 +3,7 @@
 import { useState, useCallback, useRef, DragEvent, ChangeEvent } from 'react';
 import { useTeethState } from '@/hooks/useTeethState';
 import { ToothStatus } from '@/types/dental';
-
-type AnalysisMode = 'cloud' | 'local';
+import type { Detection } from '@/lib/detection/onnxInference';
 
 export default function ImageUploader() {
   const [preview, setPreview] = useState<string | null>(null);
@@ -14,6 +13,8 @@ export default function ImageUploader() {
   const [analyzed, setAnalyzed] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string>('');
   const [localModelReady, setLocalModelReady] = useState(false);
+  const [detections, setDetections] = useState<Detection[]>([]);
+  const [showOverlay, setShowOverlay] = useState(true);
   const imgRef = useRef<HTMLImageElement>(null);
 
   const setToothStatus = useTeethState((s) => s.setToothStatus);
@@ -27,6 +28,7 @@ export default function ImageUploader() {
       setPreview(dataUrl);
       setAnalyzed(false);
       setAnalysisError(null);
+      setDetections([]);
     };
     reader.readAsDataURL(file);
   }, []);
@@ -52,7 +54,6 @@ export default function ImageUploader() {
   // Cloud analysis (Claude API)
   const analyzeCloud = useCallback(async () => {
     if (!preview) return;
-
     setAnalyzing(true);
     setAnalysisError(null);
     setStatusMsg('Claude API로 분석 중... (10~20초)');
@@ -63,13 +64,12 @@ export default function ImageUploader() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageData: preview }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || '분석 실패');
-
       applyResults(data.result);
       setAnalyzed(true);
       setStatusMsg('');
+      setDetections([]);
     } catch (err) {
       setAnalysisError(err instanceof Error ? err.message : '분석 중 오류 발생');
     } finally {
@@ -80,7 +80,6 @@ export default function ImageUploader() {
   // Local analysis (ONNX model in browser)
   const analyzeLocal = useCallback(async () => {
     if (!preview || !imgRef.current) return;
-
     setAnalyzing(true);
     setAnalysisError(null);
 
@@ -95,9 +94,10 @@ export default function ImageUploader() {
       }
 
       setStatusMsg('치아 감지 중...');
-      const result = await detectTeeth(imgRef.current);
+      const { result, detections: dets } = await detectTeeth(imgRef.current);
 
       applyResults(result);
+      setDetections(dets);
       setAnalyzed(true);
       setStatusMsg('');
     } catch (err) {
@@ -117,12 +117,22 @@ export default function ImageUploader() {
     }
   }, [resetAll, setToothStatus]);
 
+  // Color for detection overlay boxes
+  const getDetectionColor = (className: string): string => {
+    if (className === 'Missing teeth') return 'rgba(255, 60, 60, 0.7)';
+    if (className === 'Crown') return 'rgba(255, 200, 0, 0.7)';
+    if (className === 'Implant') return 'rgba(100, 150, 255, 0.7)';
+    if (className === 'Permanent Teeth') return 'rgba(100, 255, 100, 0.4)';
+    return 'rgba(200, 200, 200, 0.4)';
+  };
+
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
       <h3 className="text-sm font-semibold text-gray-700 mb-3">파노라마 X-ray</h3>
 
       {preview ? (
         <div>
+          {/* Image with detection overlay */}
           <div className="relative">
             <img
               ref={imgRef}
@@ -131,18 +141,62 @@ export default function ImageUploader() {
               className="w-full rounded-lg border border-gray-200"
               crossOrigin="anonymous"
             />
-            <button
-              onClick={() => {
-                setPreview(null);
-                setAnalyzed(false);
-                setAnalysisError(null);
-                setStatusMsg('');
-              }}
-              className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded-md hover:bg-red-600 cursor-pointer"
-            >
-              삭제
-            </button>
+
+            {/* Detection overlay boxes */}
+            {showOverlay && detections.length > 0 && (
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 1 1" preserveAspectRatio="none">
+                {detections.map((det, i) => (
+                  <g key={i}>
+                    <rect
+                      x={det.bbox.x}
+                      y={det.bbox.y}
+                      width={det.bbox.w}
+                      height={det.bbox.h}
+                      fill="none"
+                      stroke={getDetectionColor(det.className)}
+                      strokeWidth="0.003"
+                    />
+                  </g>
+                ))}
+              </svg>
+            )}
+
+            {/* Control buttons */}
+            <div className="absolute top-2 right-2 flex gap-1">
+              {detections.length > 0 && (
+                <button
+                  onClick={() => setShowOverlay(!showOverlay)}
+                  className={`text-xs px-2 py-1 rounded-md cursor-pointer ${
+                    showOverlay ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 border border-gray-300'
+                  }`}
+                >
+                  감지 {showOverlay ? 'ON' : 'OFF'}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setPreview(null);
+                  setAnalyzed(false);
+                  setAnalysisError(null);
+                  setDetections([]);
+                }}
+                className="bg-red-500 text-white text-xs px-2 py-1 rounded-md hover:bg-red-600 cursor-pointer"
+              >
+                삭제
+              </button>
+            </div>
           </div>
+
+          {/* Detection summary */}
+          {detections.length > 0 && (
+            <div className="mt-2 text-[10px] text-gray-500">
+              감지: {detections.length}개 |
+              치아: {detections.filter(d => d.className === 'Permanent Teeth').length} |
+              크라운: {detections.filter(d => d.className === 'Crown').length} |
+              임플란트: {detections.filter(d => d.className === 'Implant').length} |
+              상실: {detections.filter(d => d.className === 'Missing teeth').length}
+            </div>
+          )}
 
           {/* Analysis buttons */}
           <div className="mt-3 flex gap-2">
@@ -179,7 +233,6 @@ export default function ImageUploader() {
             <span>Claude API (정확도 높음)</span>
           </div>
 
-          {/* Status messages */}
           {analyzing && statusMsg && (
             <div className="mt-2 flex items-center justify-center gap-2 text-sm text-blue-600">
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">

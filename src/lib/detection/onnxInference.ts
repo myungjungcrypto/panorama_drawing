@@ -1,8 +1,7 @@
 import * as ort from 'onnxruntime-web';
 import { ToothStatus } from '@/types/dental';
 
-// YOLO detection result
-interface Detection {
+export interface Detection {
   classId: number;
   className: string;
   confidence: number;
@@ -16,11 +15,22 @@ const CLASS_TO_STATUS: Record<string, ToothStatus> = {
   'Crown': 'crown',
   'Implant': 'implant',
   'Missing teeth': 'missing',
-  'Filling': 'present',          // filled tooth = present
-  'Root Canal Treatment': 'present', // RCT tooth = present
-  'Root Piece': 'missing',       // root piece = effectively missing
+  'Filling': 'present',
+  'Root Canal Treatment': 'present',
+  'Root Piece': 'missing',
   'Retained root': 'missing',
 };
+
+// Classes that represent a "tooth exists at this position"
+const TOOTH_PRESENT_CLASSES = new Set([
+  'Permanent Teeth', 'Primary teeth', 'Crown', 'Implant',
+  'Filling', 'Root Canal Treatment', 'post - core', 'abutment',
+]);
+
+// Classes that override the status
+const STATUS_OVERRIDE_CLASSES = new Set([
+  'Crown', 'Implant', 'Missing teeth',
+]);
 
 let session: ort.InferenceSession | null = null;
 let classNames: Record<number, string> = {};
@@ -31,13 +41,11 @@ export async function loadModel(
   try {
     onProgress?.('ONNX 모델 로딩 중...');
 
-    // Load class names
     const classRes = await fetch('/onnx/classes.json');
     if (classRes.ok) {
       classNames = await classRes.json();
     }
 
-    // Load ONNX model
     session = await ort.InferenceSession.create('/onnx/dental_detector.onnx', {
       executionProviders: ['wasm'],
       graphOptimizationLevel: 'all',
@@ -59,19 +67,18 @@ export function isModelLoaded(): boolean {
 export async function detectTeeth(
   imageElement: HTMLImageElement,
   inputSize: number = 640,
-  confidenceThreshold: number = 0.3
-): Promise<Record<number, ToothStatus>> {
+  confidenceThreshold: number = 0.25
+): Promise<{ result: Record<number, ToothStatus>; detections: Detection[] }> {
   if (!session) {
     throw new Error('모델이 로딩되지 않았습니다.');
   }
 
-  // Preprocess: resize image to inputSize x inputSize, normalize to [0,1]
   const canvas = document.createElement('canvas');
   canvas.width = inputSize;
   canvas.height = inputSize;
   const ctx = canvas.getContext('2d')!;
 
-  // Maintain aspect ratio with letterboxing
+  // Letterbox resize
   const scale = Math.min(inputSize / imageElement.naturalWidth, inputSize / imageElement.naturalHeight);
   const scaledW = imageElement.naturalWidth * scale;
   const scaledH = imageElement.naturalHeight * scale;
@@ -85,43 +92,44 @@ export async function detectTeeth(
   const imageData = ctx.getImageData(0, 0, inputSize, inputSize);
   const { data } = imageData;
 
-  // Convert to NCHW Float32 tensor, normalize to [0, 1]
   const float32Data = new Float32Array(3 * inputSize * inputSize);
   for (let i = 0; i < inputSize * inputSize; i++) {
-    float32Data[i] = data[i * 4] / 255.0;                          // R
-    float32Data[inputSize * inputSize + i] = data[i * 4 + 1] / 255.0;     // G
-    float32Data[2 * inputSize * inputSize + i] = data[i * 4 + 2] / 255.0; // B
+    float32Data[i] = data[i * 4] / 255.0;
+    float32Data[inputSize * inputSize + i] = data[i * 4 + 1] / 255.0;
+    float32Data[2 * inputSize * inputSize + i] = data[i * 4 + 2] / 255.0;
   }
 
   const inputTensor = new ort.Tensor('float32', float32Data, [1, 3, inputSize, inputSize]);
-
-  // Run inference
   const inputName = session.inputNames[0];
   const results = await session.run({ [inputName]: inputTensor });
 
-  // Parse YOLO output
   const output = results[session.outputNames[0]];
-  const detections = parseYoloOutput(output, inputSize, confidenceThreshold);
+  const detections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, scale);
 
-  // Map detections to FDI tooth numbers based on position
-  return mapDetectionsToTeeth(detections, imageElement.naturalWidth, imageElement.naturalHeight, scale, padX, padY);
+  // Log detections for debugging
+  console.log(`[YOLO] ${detections.length}개 감지:`,
+    detections.map(d => `${d.className}(${(d.confidence * 100).toFixed(0)}%) [x:${d.bbox.x.toFixed(2)}, y:${d.bbox.y.toFixed(2)}]`)
+  );
+
+  const result = mapDetectionsToTeeth(detections);
+  return { result, detections };
 }
 
 function parseYoloOutput(
   output: ort.Tensor,
   inputSize: number,
-  confidenceThreshold: number
+  confidenceThreshold: number,
+  padX: number,
+  padY: number,
+  scale: number
 ): Detection[] {
   const data = output.data as Float32Array;
   const [, numFeatures, numBoxes] = output.dims;
-  // YOLOv8 output: [1, (4 + numClasses), numBoxes]
-  // 4 = cx, cy, w, h
   const numClasses = numFeatures - 4;
 
   const detections: Detection[] = [];
 
   for (let i = 0; i < numBoxes; i++) {
-    // Find best class
     let maxConf = 0;
     let maxClassId = 0;
     for (let c = 0; c < numClasses; c++) {
@@ -134,37 +142,42 @@ function parseYoloOutput(
 
     if (maxConf < confidenceThreshold) continue;
 
+    // Convert from input coords to original image coords (0-1 normalized)
     const cx = data[0 * numBoxes + i];
     const cy = data[1 * numBoxes + i];
     const w = data[2 * numBoxes + i];
     const h = data[3 * numBoxes + i];
+
+    // Remove padding and scaling to get normalized coords in original image
+    const origX = (cx - padX) / (inputSize - 2 * padX);
+    const origY = (cy - padY) / (inputSize - 2 * padY);
+    const origW = w / (inputSize - 2 * padX);
+    const origH = h / (inputSize - 2 * padY);
 
     detections.push({
       classId: maxClassId,
       className: classNames[maxClassId] || `class_${maxClassId}`,
       confidence: maxConf,
       bbox: {
-        x: (cx - w / 2) / inputSize,
-        y: (cy - h / 2) / inputSize,
-        w: w / inputSize,
-        h: h / inputSize,
+        x: origX - origW / 2,
+        y: origY - origH / 2,
+        w: origW,
+        h: origH,
       },
     });
   }
 
-  // NMS (Non-Maximum Suppression)
-  return nms(detections, 0.5);
+  return nms(detections, 0.45);
 }
 
 function nms(detections: Detection[], iouThreshold: number): Detection[] {
-  // Sort by confidence descending
   const sorted = [...detections].sort((a, b) => b.confidence - a.confidence);
   const kept: Detection[] = [];
 
   for (const det of sorted) {
     let dominated = false;
     for (const kept_det of kept) {
-      if (iou(det.bbox, kept_det.bbox) > iouThreshold) {
+      if (det.classId === kept_det.classId && iou(det.bbox, kept_det.bbox) > iouThreshold) {
         dominated = true;
         break;
       }
@@ -185,72 +198,95 @@ function iou(a: Detection['bbox'], b: Detection['bbox']): number {
   const areaA = a.w * a.h;
   const areaB = b.w * b.h;
   const union = areaA + areaB - intersection;
-
   return union > 0 ? intersection / union : 0;
 }
 
-function mapDetectionsToTeeth(
-  detections: Detection[],
-  imgW: number,
-  imgH: number,
-  scale: number,
-  padX: number,
-  padY: number
-): Record<number, ToothStatus> {
-  // Initialize all teeth as present
+// Panoramic X-ray: expected normalized X positions for each FDI tooth
+// Image left = patient right (Q1 upper, Q4 lower)
+// Image right = patient left (Q2 upper, Q3 lower)
+// These are approximate center X positions normalized to 0-1
+const TOOTH_X_POSITIONS: Record<number, number> = {
+  // Upper right (Q1): left side of image, 18→11
+  18: 0.04, 17: 0.10, 16: 0.16, 15: 0.22, 14: 0.27, 13: 0.32, 12: 0.38, 11: 0.44,
+  // Upper left (Q2): right side of image, 21→28
+  21: 0.56, 22: 0.62, 23: 0.68, 24: 0.73, 25: 0.78, 26: 0.84, 27: 0.90, 28: 0.96,
+  // Lower left (Q3): right side of image, 31→38
+  31: 0.56, 32: 0.62, 33: 0.68, 34: 0.73, 35: 0.78, 36: 0.84, 37: 0.90, 38: 0.96,
+  // Lower right (Q4): left side of image, 41→48
+  41: 0.44, 42: 0.38, 43: 0.32, 44: 0.27, 45: 0.22, 46: 0.16, 47: 0.10, 48: 0.04,
+};
+
+function mapDetectionsToTeeth(detections: Detection[]): Record<number, ToothStatus> {
+  // Start with all present
   const result: Record<number, ToothStatus> = {};
-  for (let q = 1; q <= 4; q++) {
-    for (let p = 1; p <= 8; p++) {
-      result[q * 10 + p] = 'present';
-    }
+  const allFdi = Object.keys(TOOTH_X_POSITIONS).map(Number);
+  for (const fdi of allFdi) {
+    result[fdi] = 'present';
   }
 
-  // Panoramic X-ray layout:
-  // Image left = patient's right (quadrants 1, 4)
-  // Image right = patient's left (quadrants 2, 3)
-  // Top half = upper jaw (quadrants 1, 2)
-  // Bottom half = lower jaw (quadrants 3, 4)
+  // Separate detections by jaw (upper vs lower)
+  const upperDets: Detection[] = [];
+  const lowerDets: Detection[] = [];
 
-  // Expected horizontal positions for each tooth (normalized 0-1)
-  // From left to right: 18,17,16,15,14,13,12,11 | 21,22,23,24,25,26,27,28
-  const upperFdi = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
-  const lowerFdi = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
-
-  // Process detections that indicate non-present status
   for (const det of detections) {
-    const status = CLASS_TO_STATUS[det.className];
-    if (!status || status === 'present') continue;
-
-    // Convert bbox center from normalized input coords to original image coords
-    const centerX = (det.bbox.x + det.bbox.w / 2);
-    const centerY = (det.bbox.y + det.bbox.h / 2);
-
-    // Determine if upper or lower jaw
-    const isUpper = centerY < 0.5;
-    const fdiRow = isUpper ? upperFdi : lowerFdi;
-
-    // Map horizontal position to tooth index (0-15)
-    const toothIdx = Math.min(15, Math.max(0, Math.floor(centerX * 16)));
-    const fdi = fdiRow[toothIdx];
-
-    // Only override if detection confidence is higher than previous
-    if (fdi && (result[fdi] === 'present' || det.confidence > 0.5)) {
-      result[fdi] = status;
+    const centerY = det.bbox.y + det.bbox.h / 2;
+    if (centerY < 0.55) {
+      upperDets.push(det);
+    } else {
+      lowerDets.push(det);
     }
   }
 
-  // Check for "Missing teeth" class detections
-  for (const det of detections) {
-    if (det.className === 'Missing teeth' && det.confidence > 0.3) {
-      const centerX = (det.bbox.x + det.bbox.w / 2);
-      const centerY = (det.bbox.y + det.bbox.h / 2);
-      const isUpper = centerY < 0.5;
-      const fdiRow = isUpper ? upperFdi : lowerFdi;
-      const toothIdx = Math.min(15, Math.max(0, Math.floor(centerX * 16)));
-      const fdi = fdiRow[toothIdx];
-      if (fdi) result[fdi] = 'missing';
-    }
-  }
+  // Process each jaw
+  processJawDetections(upperDets, [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28], result);
+  processJawDetections(lowerDets, [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38], result);
 
   return result;
+}
+
+function processJawDetections(
+  detections: Detection[],
+  fdiOrder: number[],
+  result: Record<number, ToothStatus>
+) {
+  // For each detection, find the nearest FDI tooth position
+  for (const det of detections) {
+    const status = CLASS_TO_STATUS[det.className];
+    if (!status) continue;
+
+    const centerX = det.bbox.x + det.bbox.w / 2;
+
+    // Find closest FDI tooth to this detection's X position
+    let closestFdi = fdiOrder[0];
+    let closestDist = Infinity;
+
+    for (const fdi of fdiOrder) {
+      const expectedX = TOOTH_X_POSITIONS[fdi];
+      const dist = Math.abs(centerX - expectedX);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closestFdi = fdi;
+      }
+    }
+
+    // Only assign if reasonably close (within ~4% of image width)
+    if (closestDist > 0.06) continue;
+
+    // Status priority: missing > implant > crown > present
+    const currentStatus = result[closestFdi];
+    if (shouldOverride(currentStatus, status)) {
+      result[closestFdi] = status;
+    }
+  }
+}
+
+function shouldOverride(current: ToothStatus, incoming: ToothStatus): boolean {
+  const priority: Record<ToothStatus, number> = {
+    present: 0,
+    crown: 1,
+    bridge: 2,
+    implant: 3,
+    missing: 4,
+  };
+  return priority[incoming] > priority[current];
 }
