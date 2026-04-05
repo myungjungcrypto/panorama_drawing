@@ -8,10 +8,8 @@ export interface Detection {
   bbox: { x: number; y: number; w: number; h: number };
 }
 
-// Map YOLO class names to our ToothStatus
-const CLASS_TO_STATUS: Record<string, ToothStatus> = {
-  'Permanent Teeth': 'present',
-  'Primary teeth': 'present',
+// Map condition class names to ToothStatus
+const CONDITION_TO_STATUS: Record<string, ToothStatus> = {
   'Crown': 'crown',
   'Implant': 'implant',
   'Missing teeth': 'missing',
@@ -19,37 +17,59 @@ const CLASS_TO_STATUS: Record<string, ToothStatus> = {
   'Root Canal Treatment': 'present',
   'Root Piece': 'missing',
   'Retained root': 'missing',
+  'post - core': 'crown',
+  'abutment': 'bridge',
 };
 
-// Classes that represent a "tooth exists at this position"
-const TOOTH_PRESENT_CLASSES = new Set([
-  'Permanent Teeth', 'Primary teeth', 'Crown', 'Implant',
-  'Filling', 'Root Canal Treatment', 'post - core', 'abutment',
-]);
-
-// Classes that override the status
-const STATUS_OVERRIDE_CLASSES = new Set([
-  'Crown', 'Implant', 'Missing teeth',
-]);
-
-let session: ort.InferenceSession | null = null;
-let classNames: Record<number, string> = {};
+let numberingSession: ort.InferenceSession | null = null;
+let conditionSession: ort.InferenceSession | null = null;
+let numberingClassNames: Record<number, string> = {};
+let conditionClassNames: Record<number, string> = {};
 
 export async function loadModel(
   onProgress?: (msg: string) => void
 ): Promise<boolean> {
   try {
-    onProgress?.('ONNX 모델 로딩 중...');
-
-    const classRes = await fetch('/onnx/classes.json');
-    if (classRes.ok) {
-      classNames = await classRes.json();
+    // Load tooth numbering model (primary)
+    onProgress?.('치아 번호 모델 로딩 중...');
+    const numClassRes = await fetch('/onnx/tooth_classes.json');
+    if (numClassRes.ok) {
+      numberingClassNames = await numClassRes.json();
     }
 
-    session = await ort.InferenceSession.create('/onnx/dental_detector.onnx', {
-      executionProviders: ['wasm'],
-      graphOptimizationLevel: 'all',
-    });
+    try {
+      numberingSession = await ort.InferenceSession.create('/onnx/tooth_numbering.onnx', {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'all',
+      });
+      onProgress?.('치아 번호 모델 로딩 완료');
+    } catch {
+      console.warn('치아 번호 모델 없음 - 상태 감지 모델만 사용');
+      numberingSession = null;
+    }
+
+    // Load condition detection model
+    onProgress?.('상태 감지 모델 로딩 중...');
+    const condClassRes = await fetch('/onnx/classes.json');
+    if (condClassRes.ok) {
+      conditionClassNames = await condClassRes.json();
+    }
+
+    try {
+      conditionSession = await ort.InferenceSession.create('/onnx/dental_detector.onnx', {
+        executionProviders: ['wasm'],
+        graphOptimizationLevel: 'all',
+      });
+      onProgress?.('상태 감지 모델 로딩 완료');
+    } catch {
+      console.warn('상태 감지 모델 없음');
+      conditionSession = null;
+    }
+
+    if (!numberingSession && !conditionSession) {
+      onProgress?.('모델 로딩 실패');
+      return false;
+    }
 
     onProgress?.('모델 로딩 완료');
     return true;
@@ -61,7 +81,7 @@ export async function loadModel(
 }
 
 export function isModelLoaded(): boolean {
-  return session !== null;
+  return numberingSession !== null || conditionSession !== null;
 }
 
 export async function detectTeeth(
@@ -69,16 +89,52 @@ export async function detectTeeth(
   inputSize: number = 640,
   confidenceThreshold: number = 0.25
 ): Promise<{ result: Record<number, ToothStatus>; detections: Detection[] }> {
-  if (!session) {
-    throw new Error('모델이 로딩되지 않았습니다.');
+  const allDetections: Detection[] = [];
+
+  // Prepare image tensor
+  const { tensor, padX, padY } = prepareImage(imageElement, inputSize);
+
+  // Step 1: Run tooth numbering model (if available)
+  let toothDetections: Detection[] = [];
+  if (numberingSession) {
+    const inputName = numberingSession.inputNames[0];
+    const results = await numberingSession.run({ [inputName]: tensor });
+    const output = results[numberingSession.outputNames[0]];
+    toothDetections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, numberingClassNames);
+    console.log(`[치아번호] ${toothDetections.length}개 감지:`,
+      toothDetections.map(d => `#${d.className}(${(d.confidence * 100).toFixed(0)}%)`)
+    );
+    allDetections.push(...toothDetections);
   }
 
+  // Step 2: Run condition detection model (if available)
+  let conditionDetections: Detection[] = [];
+  if (conditionSession) {
+    const inputName = conditionSession.inputNames[0];
+    const results = await conditionSession.run({ [inputName]: tensor });
+    const output = results[conditionSession.outputNames[0]];
+    conditionDetections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, conditionClassNames);
+    console.log(`[상태감지] ${conditionDetections.length}개 감지:`,
+      conditionDetections.map(d => `${d.className}(${(d.confidence * 100).toFixed(0)}%)`)
+    );
+    allDetections.push(...conditionDetections);
+  }
+
+  // Step 3: Combine results
+  const result = combineResults(toothDetections, conditionDetections);
+
+  return { result, detections: allDetections };
+}
+
+function prepareImage(
+  imageElement: HTMLImageElement,
+  inputSize: number
+): { tensor: ort.Tensor; padX: number; padY: number } {
   const canvas = document.createElement('canvas');
   canvas.width = inputSize;
   canvas.height = inputSize;
   const ctx = canvas.getContext('2d')!;
 
-  // Letterbox resize
   const scale = Math.min(inputSize / imageElement.naturalWidth, inputSize / imageElement.naturalHeight);
   const scaledW = imageElement.naturalWidth * scale;
   const scaledH = imageElement.naturalHeight * scale;
@@ -99,20 +155,8 @@ export async function detectTeeth(
     float32Data[2 * inputSize * inputSize + i] = data[i * 4 + 2] / 255.0;
   }
 
-  const inputTensor = new ort.Tensor('float32', float32Data, [1, 3, inputSize, inputSize]);
-  const inputName = session.inputNames[0];
-  const results = await session.run({ [inputName]: inputTensor });
-
-  const output = results[session.outputNames[0]];
-  const detections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, scale);
-
-  // Log detections for debugging
-  console.log(`[YOLO] ${detections.length}개 감지:`,
-    detections.map(d => `${d.className}(${(d.confidence * 100).toFixed(0)}%) [x:${d.bbox.x.toFixed(2)}, y:${d.bbox.y.toFixed(2)}]`)
-  );
-
-  const result = mapDetectionsToTeeth(detections);
-  return { result, detections };
+  const tensor = new ort.Tensor('float32', float32Data, [1, 3, inputSize, inputSize]);
+  return { tensor, padX, padY };
 }
 
 function parseYoloOutput(
@@ -121,7 +165,7 @@ function parseYoloOutput(
   confidenceThreshold: number,
   padX: number,
   padY: number,
-  scale: number
+  classNamesMap: Record<number, string>
 ): Detection[] {
   const data = output.data as Float32Array;
   const [, numFeatures, numBoxes] = output.dims;
@@ -142,13 +186,11 @@ function parseYoloOutput(
 
     if (maxConf < confidenceThreshold) continue;
 
-    // Convert from input coords to original image coords (0-1 normalized)
     const cx = data[0 * numBoxes + i];
     const cy = data[1 * numBoxes + i];
     const w = data[2 * numBoxes + i];
     const h = data[3 * numBoxes + i];
 
-    // Remove padding and scaling to get normalized coords in original image
     const origX = (cx - padX) / (inputSize - 2 * padX);
     const origY = (cy - padY) / (inputSize - 2 * padY);
     const origW = w / (inputSize - 2 * padX);
@@ -156,7 +198,7 @@ function parseYoloOutput(
 
     detections.push({
       classId: maxClassId,
-      className: classNames[maxClassId] || `class_${maxClassId}`,
+      className: classNamesMap[maxClassId] || `class_${maxClassId}`,
       confidence: maxConf,
       bbox: {
         x: origX - origW / 2,
@@ -201,95 +243,151 @@ function iou(a: Detection['bbox'], b: Detection['bbox']): number {
   return union > 0 ? intersection / union : 0;
 }
 
-// Panoramic X-ray: expected normalized X positions for each FDI tooth
-// Image left = patient right (Q1 upper, Q4 lower)
-// Image right = patient left (Q2 upper, Q3 lower)
-// Panoramic images are typically wider than tall, teeth occupy ~80% of width
-// Positions adjusted based on real panoramic anatomy
-const TOOTH_X_POSITIONS: Record<number, number> = {
-  // Upper right (Q1): left side of image, 18→11
-  18: 0.06, 17: 0.11, 16: 0.17, 15: 0.22, 14: 0.27, 13: 0.32, 12: 0.39, 11: 0.45,
-  // Upper left (Q2): right side of image, 21→28
-  21: 0.55, 22: 0.61, 23: 0.68, 24: 0.73, 25: 0.78, 26: 0.83, 27: 0.89, 28: 0.94,
-  // Lower left (Q3): right side of image, 31→38
-  // Note: lower teeth positions mirror upper but the arch is narrower
-  31: 0.54, 32: 0.59, 33: 0.64, 34: 0.69, 35: 0.74, 36: 0.79, 37: 0.85, 38: 0.91,
-  // Lower right (Q4): left side of image, 41→48
-  41: 0.46, 42: 0.41, 43: 0.36, 44: 0.31, 45: 0.26, 46: 0.21, 47: 0.15, 48: 0.09,
-};
+function bboxOverlap(a: Detection['bbox'], b: Detection['bbox']): number {
+  const ix1 = Math.max(a.x, b.x);
+  const iy1 = Math.max(a.y, b.y);
+  const ix2 = Math.min(a.x + a.w, b.x + b.w);
+  const iy2 = Math.min(a.y + a.h, b.y + b.h);
+  const intersection = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1);
+  const smallerArea = Math.min(a.w * a.h, b.w * b.h);
+  return smallerArea > 0 ? intersection / smallerArea : 0;
+}
 
-function mapDetectionsToTeeth(detections: Detection[]): Record<number, ToothStatus> {
-  // Start with all present
+function combineResults(
+  toothDetections: Detection[],
+  conditionDetections: Detection[]
+): Record<number, ToothStatus> {
+  // Initialize all as present
   const result: Record<number, ToothStatus> = {};
-  const allFdi = Object.keys(TOOTH_X_POSITIONS).map(Number);
-  for (const fdi of allFdi) {
-    result[fdi] = 'present';
-  }
-
-  // Separate detections by jaw (upper vs lower)
-  const upperDets: Detection[] = [];
-  const lowerDets: Detection[] = [];
-
-  for (const det of detections) {
-    const centerY = det.bbox.y + det.bbox.h / 2;
-    // Upper/lower jaw boundary: typically around 47-50% of image height
-    if (centerY < 0.48) {
-      upperDets.push(det);
-    } else {
-      lowerDets.push(det);
+  for (let q = 1; q <= 4; q++) {
+    for (let p = 1; p <= 8; p++) {
+      result[q * 10 + p] = 'present';
     }
   }
 
-  // Process each jaw
-  processJawDetections(upperDets, [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28], result);
-  processJawDetections(lowerDets, [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38], result);
+  if (toothDetections.length > 0) {
+    // === Two-model pipeline ===
+    // Step 1: Map tooth detections to FDI numbers
+    const toothMap = new Map<number, Detection>(); // FDI -> detection
 
-  return result;
-}
+    for (const det of toothDetections) {
+      const fdi = parseInt(det.className);
+      if (isNaN(fdi) || fdi < 11 || fdi > 48) continue;
 
-function processJawDetections(
-  detections: Detection[],
-  fdiOrder: number[],
-  result: Record<number, ToothStatus>
-) {
-  // For each detection, find the nearest FDI tooth position
-  for (const det of detections) {
-    const status = CLASS_TO_STATUS[det.className];
-    if (!status) continue;
-
-    const centerX = det.bbox.x + det.bbox.w / 2;
-
-    // Find closest FDI tooth to this detection's X position
-    let closestFdi = fdiOrder[0];
-    let closestDist = Infinity;
-
-    for (const fdi of fdiOrder) {
-      const expectedX = TOOTH_X_POSITIONS[fdi];
-      const dist = Math.abs(centerX - expectedX);
-      if (dist < closestDist) {
-        closestDist = dist;
-        closestFdi = fdi;
+      // Keep highest confidence detection for each FDI
+      const existing = toothMap.get(fdi);
+      if (!existing || det.confidence > existing.confidence) {
+        toothMap.set(fdi, det);
       }
     }
 
-    // Only assign if reasonably close (within ~4% of image width)
-    if (closestDist > 0.06) continue;
+    // All detected teeth are present
+    // Teeth NOT detected = potentially missing (but only if enough teeth were detected)
+    const detectedFdis = new Set(toothMap.keys());
+    console.log(`[매핑] 감지된 치아: ${Array.from(detectedFdis).sort().join(', ')}`);
 
-    // Status priority: missing > implant > crown > present
-    const currentStatus = result[closestFdi];
-    if (shouldOverride(currentStatus, status)) {
-      result[closestFdi] = status;
+    // Only mark as missing if at least 20 teeth were detected (model is working well)
+    if (detectedFdis.size >= 20) {
+      for (const fdi of Object.keys(result).map(Number)) {
+        if (!detectedFdis.has(fdi)) {
+          result[fdi] = 'missing';
+        }
+      }
+    }
+
+    // Step 2: Overlay condition detections onto detected teeth
+    for (const condDet of conditionDetections) {
+      const status = CONDITION_TO_STATUS[condDet.className];
+      if (!status || status === 'present') continue;
+
+      // Find which tooth this condition overlaps with
+      let bestFdi = 0;
+      let bestOverlap = 0.3; // minimum 30% overlap required
+
+      for (const [fdi, toothDet] of toothMap) {
+        const overlap = bboxOverlap(condDet.bbox, toothDet.bbox);
+        if (overlap > bestOverlap) {
+          bestOverlap = overlap;
+          bestFdi = fdi;
+        }
+      }
+
+      if (bestFdi > 0) {
+        console.log(`[매핑] ${condDet.className} → #${bestFdi} (겹침: ${(bestOverlap * 100).toFixed(0)}%)`);
+        result[bestFdi] = status;
+      }
+    }
+
+    // Also check for "Missing teeth" detections from condition model
+    for (const condDet of conditionDetections) {
+      if (condDet.className !== 'Missing teeth') continue;
+
+      // For missing teeth, find the nearest tooth position that isn't already detected
+      const centerX = condDet.bbox.x + condDet.bbox.w / 2;
+      const centerY = condDet.bbox.y + condDet.bbox.h / 2;
+      const isUpper = centerY < 0.48;
+
+      // Find the nearest undetected tooth position
+      for (const [fdi, toothDet] of toothMap) {
+        const toothCenterX = toothDet.bbox.x + toothDet.bbox.w / 2;
+        const dist = Math.abs(centerX - toothCenterX);
+        // If there's a missing teeth detection near a detected tooth, check neighbors
+        if (dist < 0.05) {
+          const quadrant = Math.floor(fdi / 10);
+          const position = fdi % 10;
+          const isCorrectJaw = isUpper ? (quadrant <= 2) : (quadrant >= 3);
+          if (isCorrectJaw) {
+            // Check adjacent positions for gaps
+            for (const adj of [position - 1, position + 1]) {
+              if (adj >= 1 && adj <= 8) {
+                const adjFdi = quadrant * 10 + adj;
+                if (!detectedFdis.has(adjFdi)) {
+                  result[adjFdi] = 'missing';
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+  } else {
+    // === Fallback: condition model only (old behavior) ===
+    console.log('[매핑] 치아 번호 모델 없음 - 위치 기반 추정 사용');
+    const upperFdi = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
+    const lowerFdi = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+
+    const TOOTH_X: Record<number, number> = {
+      18: 0.06, 17: 0.11, 16: 0.17, 15: 0.22, 14: 0.27, 13: 0.32, 12: 0.39, 11: 0.45,
+      21: 0.55, 22: 0.61, 23: 0.68, 24: 0.73, 25: 0.78, 26: 0.83, 27: 0.89, 28: 0.94,
+      31: 0.54, 32: 0.59, 33: 0.64, 34: 0.69, 35: 0.74, 36: 0.79, 37: 0.85, 38: 0.91,
+      41: 0.46, 42: 0.41, 43: 0.36, 44: 0.31, 45: 0.26, 46: 0.21, 47: 0.15, 48: 0.09,
+    };
+
+    for (const det of conditionDetections) {
+      const status = CONDITION_TO_STATUS[det.className];
+      if (!status) continue;
+
+      const cx = det.bbox.x + det.bbox.w / 2;
+      const cy = det.bbox.y + det.bbox.h / 2;
+      const isUpper = cy < 0.48;
+      const fdiRow = isUpper ? upperFdi : lowerFdi;
+
+      let closestFdi = fdiRow[0];
+      let closestDist = Infinity;
+      for (const fdi of fdiRow) {
+        const dist = Math.abs(cx - TOOTH_X[fdi]);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestFdi = fdi;
+        }
+      }
+
+      if (closestDist < 0.06 && status !== 'present') {
+        result[closestFdi] = status;
+      }
     }
   }
-}
 
-function shouldOverride(current: ToothStatus, incoming: ToothStatus): boolean {
-  const priority: Record<ToothStatus, number> = {
-    present: 0,
-    crown: 1,
-    bridge: 2,
-    implant: 3,
-    missing: 4,
-  };
-  return priority[incoming] > priority[current];
+  return result;
 }
