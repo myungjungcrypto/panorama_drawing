@@ -268,39 +268,11 @@ function combineResults(
   if (toothDetections.length > 0) {
     // === Two-model pipeline ===
 
-    // Step 1: Map tooth detections to FDI numbers with quadrant validation
+    // Step 1: Map tooth detections to FDI numbers
     const toothMap = new Map<number, Detection>();
     for (const det of toothDetections) {
-      let fdi = parseInt(det.className);
+      const fdi = parseInt(det.className);
       if (isNaN(fdi) || fdi < 11 || fdi > 48) continue;
-
-      // Validate and correct quadrant based on image position
-      // Panoramic convention: image LEFT = patient RIGHT (Q1,Q4), image RIGHT = patient LEFT (Q2,Q3)
-      const centerX = det.bbox.x + det.bbox.w / 2;
-      const centerY = det.bbox.y + det.bbox.h / 2;
-      const isImageLeft = centerX < 0.5;
-      const isUpper = centerY < 0.48;
-
-      const quadrant = Math.floor(fdi / 10);
-      const position = fdi % 10;
-
-      // Expected quadrant based on image position
-      let correctedQuadrant = quadrant;
-      if (isUpper) {
-        // Upper jaw: image left = Q1, image right = Q2
-        if (isImageLeft && quadrant === 2) correctedQuadrant = 1;
-        if (!isImageLeft && quadrant === 1) correctedQuadrant = 2;
-      } else {
-        // Lower jaw: image left = Q4, image right = Q3
-        if (isImageLeft && quadrant === 3) correctedQuadrant = 4;
-        if (!isImageLeft && quadrant === 4) correctedQuadrant = 3;
-      }
-
-      if (correctedQuadrant !== quadrant) {
-        const oldFdi = fdi;
-        fdi = correctedQuadrant * 10 + position;
-        console.log(`[보정] #${oldFdi} → #${fdi} (이미지 ${isImageLeft ? '좌측' : '우측'}, ${isUpper ? '상악' : '하악'})`);
-      }
 
       const existing = toothMap.get(fdi);
       if (!existing || det.confidence > existing.confidence) {
