@@ -282,18 +282,10 @@ function combineResults(
     }
 
     // All detected teeth are present
-    // Teeth NOT detected = potentially missing (but only if enough teeth were detected)
+    // NOTE: 치아 번호 모델이 감지 못한 것 ≠ 상실
+    // 상실은 오직 상태 감지 모델의 "Missing teeth" 클래스로만 판단
     const detectedFdis = new Set(toothMap.keys());
-    console.log(`[매핑] 감지된 치아: ${Array.from(detectedFdis).sort().join(', ')}`);
-
-    // Only mark as missing if at least 20 teeth were detected (model is working well)
-    if (detectedFdis.size >= 20) {
-      for (const fdi of Object.keys(result).map(Number)) {
-        if (!detectedFdis.has(fdi)) {
-          result[fdi] = 'missing';
-        }
-      }
-    }
+    console.log(`[매핑] 감지된 치아 (${detectedFdis.size}개): ${Array.from(detectedFdis).sort().join(', ')}`);
 
     // Step 2: Overlay condition detections onto detected teeth
     for (const condDet of conditionDetections) {
