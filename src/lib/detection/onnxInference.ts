@@ -267,82 +267,92 @@ function combineResults(
 
   if (toothDetections.length > 0) {
     // === Two-model pipeline ===
-    // Step 1: Map tooth detections to FDI numbers
-    const toothMap = new Map<number, Detection>(); // FDI -> detection
 
+    // Step 1: Map tooth detections to FDI numbers
+    const toothMap = new Map<number, Detection>();
     for (const det of toothDetections) {
       const fdi = parseInt(det.className);
       if (isNaN(fdi) || fdi < 11 || fdi > 48) continue;
-
-      // Keep highest confidence detection for each FDI
       const existing = toothMap.get(fdi);
       if (!existing || det.confidence > existing.confidence) {
         toothMap.set(fdi, det);
       }
     }
 
-    // All detected teeth are present
     const detectedFdis = new Set(toothMap.keys());
-    console.log(`[매핑] 감지된 치아 (${detectedFdis.size}개): ${Array.from(detectedFdis).sort().join(', ')}`);
+    const undetectedFdis = new Set<number>();
+    for (let q = 1; q <= 4; q++) {
+      for (let p = 1; p <= 8; p++) {
+        const fdi = q * 10 + p;
+        if (!detectedFdis.has(fdi)) undetectedFdis.add(fdi);
+      }
+    }
 
-    // Step 2: Overlay condition detections onto detected teeth
+    console.log(`[매핑] 감지된 치아 (${detectedFdis.size}개): ${Array.from(detectedFdis).sort().join(', ')}`);
+    console.log(`[매핑] 미감지 치아 (${undetectedFdis.size}개): ${Array.from(undetectedFdis).sort().join(', ')}`);
+
+    // Step 2: Process condition detections
+    // KEY PRINCIPLE:
+    //   - Crown/Implant → 감지된 치아 중 가장 가까운 것에 매핑 (치아가 있으니까)
+    //   - Missing teeth → 미감지 치아 중 가장 가까운 것에 매핑 (치아가 없으니까)
+
     for (const condDet of conditionDetections) {
       const status = CONDITION_TO_STATUS[condDet.className];
       if (!status || status === 'present') continue;
 
-      // Find which tooth this condition overlaps with
-      let bestFdi = 0;
-      let bestOverlap = 0.3; // minimum 30% overlap required
+      const condCenterX = condDet.bbox.x + condDet.bbox.w / 2;
+      const condCenterY = condDet.bbox.y + condDet.bbox.h / 2;
+      const isUpper = condCenterY < 0.48;
 
-      for (const [fdi, toothDet] of toothMap) {
-        const overlap = bboxOverlap(condDet.bbox, toothDet.bbox);
-        if (overlap > bestOverlap) {
-          bestOverlap = overlap;
-          bestFdi = fdi;
-        }
-      }
+      if (condDet.className === 'Missing teeth') {
+        // === MISSING: 미감지 치아 중에서 가장 가까운 위치 찾기 ===
+        let bestFdi = 0;
+        let bestDist = Infinity;
 
-      if (bestFdi > 0) {
-        console.log(`[매핑] ${condDet.className} → #${bestFdi} (겹침: ${(bestOverlap * 100).toFixed(0)}%)`);
-        result[bestFdi] = status;
-      }
-    }
-
-    // Also check for "Missing teeth" detections from condition model
-    for (const condDet of conditionDetections) {
-      if (condDet.className !== 'Missing teeth') continue;
-
-      // For missing teeth, find the nearest tooth position that isn't already detected
-      const centerX = condDet.bbox.x + condDet.bbox.w / 2;
-      const centerY = condDet.bbox.y + condDet.bbox.h / 2;
-      const isUpper = centerY < 0.48;
-
-      // Find the nearest undetected tooth position
-      for (const [fdi, toothDet] of toothMap) {
-        const toothCenterX = toothDet.bbox.x + toothDet.bbox.w / 2;
-        const dist = Math.abs(centerX - toothCenterX);
-        // If there's a missing teeth detection near a detected tooth, check neighbors
-        if (dist < 0.05) {
+        for (const fdi of undetectedFdis) {
           const quadrant = Math.floor(fdi / 10);
-          const position = fdi % 10;
-          const isCorrectJaw = isUpper ? (quadrant <= 2) : (quadrant >= 3);
-          if (isCorrectJaw) {
-            // Check adjacent positions for gaps
-            for (const adj of [position - 1, position + 1]) {
-              if (adj >= 1 && adj <= 8) {
-                const adjFdi = quadrant * 10 + adj;
-                if (!detectedFdis.has(adjFdi)) {
-                  result[adjFdi] = 'missing';
-                }
-              }
-            }
+          const fdiIsUpper = quadrant <= 2;
+          if (fdiIsUpper !== isUpper) continue; // 같은 악궁만
+
+          // 미감지 치아의 예상 X 위치 추정:
+          // 인접한 감지된 치아들의 위치를 보간하여 추정
+          const estimatedX = estimateToothX(fdi, toothMap);
+          if (estimatedX === null) continue;
+
+          const dist = Math.abs(condCenterX - estimatedX);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestFdi = fdi;
           }
+        }
+
+        if (bestFdi > 0 && bestDist < 0.08) {
+          console.log(`[매핑] Missing teeth → #${bestFdi} (거리: ${(bestDist * 100).toFixed(1)}%, 미감지 치아)`);
+          result[bestFdi] = 'missing';
+        }
+
+      } else {
+        // === CROWN/IMPLANT: 감지된 치아 중에서 바운딩 박스 겹침으로 매핑 ===
+        let bestFdi = 0;
+        let bestOverlap = 0.2;
+
+        for (const [fdi, toothDet] of toothMap) {
+          const overlap = bboxOverlap(condDet.bbox, toothDet.bbox);
+          if (overlap > bestOverlap) {
+            bestOverlap = overlap;
+            bestFdi = fdi;
+          }
+        }
+
+        if (bestFdi > 0) {
+          console.log(`[매핑] ${condDet.className} → #${bestFdi} (겹침: ${(bestOverlap * 100).toFixed(0)}%)`);
+          result[bestFdi] = status;
         }
       }
     }
 
   } else {
-    // === Fallback: condition model only (old behavior) ===
+    // === Fallback: condition model only ===
     console.log('[매핑] 치아 번호 모델 없음 - 위치 기반 추정 사용');
     const upperFdi = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
     const lowerFdi = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
@@ -380,4 +390,67 @@ function combineResults(
   }
 
   return result;
+}
+
+/**
+ * 미감지 치아의 예상 X 위치를 인접 감지 치아로부터 보간 추정
+ */
+function estimateToothX(
+  fdi: number,
+  toothMap: Map<number, Detection>
+): number | null {
+  const quadrant = Math.floor(fdi / 10);
+  const position = fdi % 10;
+
+  // 같은 사분면에서 인접한 감지된 치아 찾기
+  let leftFdi = 0, rightFdi = 0;
+  let leftDet: Detection | null = null, rightDet: Detection | null = null;
+
+  // 왼쪽(더 작은 position) 방향으로 가장 가까운 감지 치아
+  for (let p = position - 1; p >= 1; p--) {
+    const adjFdi = quadrant * 10 + p;
+    if (toothMap.has(adjFdi)) {
+      leftFdi = adjFdi;
+      leftDet = toothMap.get(adjFdi)!;
+      break;
+    }
+  }
+
+  // 오른쪽(더 큰 position) 방향으로 가장 가까운 감지 치아
+  for (let p = position + 1; p <= 8; p++) {
+    const adjFdi = quadrant * 10 + p;
+    if (toothMap.has(adjFdi)) {
+      rightFdi = adjFdi;
+      rightDet = toothMap.get(adjFdi)!;
+      break;
+    }
+  }
+
+  if (leftDet && rightDet) {
+    // 양쪽 다 있으면 선형 보간
+    const leftX = leftDet.bbox.x + leftDet.bbox.w / 2;
+    const rightX = rightDet.bbox.x + rightDet.bbox.w / 2;
+    const leftPos = leftFdi % 10;
+    const rightPos = rightFdi % 10;
+    const ratio = (position - leftPos) / (rightPos - leftPos);
+    return leftX + (rightX - leftX) * ratio;
+  } else if (leftDet) {
+    // 왼쪽만 있으면 치아 간격 추정
+    const leftX = leftDet.bbox.x + leftDet.bbox.w / 2;
+    const gap = leftDet.bbox.w * 1.1; // 치아 너비만큼 간격
+    const leftPos = leftFdi % 10;
+    const diff = position - leftPos;
+    // 사분면에 따라 방향 결정
+    const direction = (quadrant === 1 || quadrant === 4) ? -1 : 1;
+    return leftX + direction * gap * diff;
+  } else if (rightDet) {
+    const rightX = rightDet.bbox.x + rightDet.bbox.w / 2;
+    const gap = rightDet.bbox.w * 1.1;
+    const rightPos = rightFdi % 10;
+    const diff = rightPos - position;
+    const direction = (quadrant === 1 || quadrant === 4) ? -1 : 1;
+    return rightX - direction * gap * diff;
+  }
+
+  return null;
 }
