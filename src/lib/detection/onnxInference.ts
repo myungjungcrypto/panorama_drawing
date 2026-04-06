@@ -285,29 +285,6 @@ function combineResults(
     const detectedFdis = new Set(toothMap.keys());
     console.log(`[매핑] 감지된 치아 (${detectedFdis.size}개): ${Array.from(detectedFdis).sort().join(', ')}`);
 
-    // Per-quadrant missing tooth detection:
-    // If most teeth in a quadrant were detected but some are missing,
-    // the missing ones are likely genuinely absent
-    const quadrants: Record<number, number[]> = {
-      1: [11, 12, 13, 14, 15, 16, 17, 18],
-      2: [21, 22, 23, 24, 25, 26, 27, 28],
-      3: [31, 32, 33, 34, 35, 36, 37, 38],
-      4: [41, 42, 43, 44, 45, 46, 47, 48],
-    };
-
-    for (const [q, fdiList] of Object.entries(quadrants)) {
-      const detected = fdiList.filter(fdi => detectedFdis.has(fdi));
-      const notDetected = fdiList.filter(fdi => !detectedFdis.has(fdi));
-
-      // If ≥6 out of 8 teeth detected in this quadrant, missing ones are likely absent
-      if (detected.length >= 6 && notDetected.length > 0) {
-        for (const fdi of notDetected) {
-          result[fdi] = 'missing';
-          console.log(`[매핑] Q${q} 사분면: #${fdi} 상실 추정 (${detected.length}/8 감지)`);
-        }
-      }
-    }
-
     // Step 2: Overlay condition detections onto detected teeth
     for (const condDet of conditionDetections) {
       const status = CONDITION_TO_STATUS[condDet.className];
