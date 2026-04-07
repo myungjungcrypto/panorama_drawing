@@ -293,30 +293,40 @@ function combineResults(
     console.log(`[매핑] 미감지 치아 (${undetectedFdis.size}개): ${Array.from(undetectedFdis).sort().join(', ')}`);
 
     // Step 2: Process condition detections
-    // KEY PRINCIPLE:
-    //   - Crown/Implant → 감지된 치아 중 가장 가까운 것에 매핑 (치아가 있으니까)
-    //   - Missing teeth → 미감지 치아 중 가장 가까운 것에 매핑 (치아가 없으니까)
+    // KEY PRINCIPLES:
+    //   - Crown/Implant → 감지된 치아 중 겹치는 것에 1:1 매핑
+    //   - Missing teeth → 미감지 치아 중 가장 가까운 것에 매핑
+    //   - 같은 치아에 Crown + Implant → Implant 우선
+    //   - 각 Crown/Implant은 반드시 서로 다른 치아에 매핑 (1:1)
+
+    // Step 2a: Collect all Crown/Implant detections with their best matching teeth
+    interface CondMatch {
+      det: Detection;
+      status: ToothStatus;
+      fdi: number;
+      overlap: number;
+    }
+
+    const condMatches: CondMatch[] = [];
 
     for (const condDet of conditionDetections) {
       const status = CONDITION_TO_STATUS[condDet.className];
       if (!status || status === 'present') continue;
 
-      const condCenterX = condDet.bbox.x + condDet.bbox.w / 2;
-      const condCenterY = condDet.bbox.y + condDet.bbox.h / 2;
-      const isUpper = condCenterY < 0.48;
-
       if (condDet.className === 'Missing teeth') {
-        // === MISSING: 미감지 치아 중에서 가장 가까운 위치 찾기 ===
+        // Missing은 별도 처리
+        const condCenterX = condDet.bbox.x + condDet.bbox.w / 2;
+        const condCenterY = condDet.bbox.y + condDet.bbox.h / 2;
+        const isUpper = condCenterY < 0.48;
+
         let bestFdi = 0;
         let bestDist = Infinity;
 
         for (const fdi of undetectedFdis) {
           const quadrant = Math.floor(fdi / 10);
           const fdiIsUpper = quadrant <= 2;
-          if (fdiIsUpper !== isUpper) continue; // 같은 악궁만
+          if (fdiIsUpper !== isUpper) continue;
 
-          // 미감지 치아의 예상 X 위치 추정:
-          // 인접한 감지된 치아들의 위치를 보간하여 추정
           const estimatedX = estimateToothX(fdi, toothMap);
           if (estimatedX === null) continue;
 
@@ -331,24 +341,91 @@ function combineResults(
           console.log(`[매핑] Missing teeth → #${bestFdi} (거리: ${(bestDist * 100).toFixed(1)}%, 미감지 치아)`);
           result[bestFdi] = 'missing';
         }
-
       } else {
-        // === CROWN/IMPLANT: 감지된 치아 중에서 바운딩 박스 겹침으로 매핑 ===
-        let bestFdi = 0;
-        let bestOverlap = 0.2;
+        // Crown/Implant: 모든 감지된 치아와의 겹침 계산
+        const matches: { fdi: number; overlap: number }[] = [];
 
         for (const [fdi, toothDet] of toothMap) {
           const overlap = bboxOverlap(condDet.bbox, toothDet.bbox);
-          if (overlap > bestOverlap) {
-            bestOverlap = overlap;
-            bestFdi = fdi;
+          if (overlap > 0.15) {
+            matches.push({ fdi, overlap });
           }
         }
 
-        if (bestFdi > 0) {
-          console.log(`[매핑] ${condDet.className} → #${bestFdi} (겹침: ${(bestOverlap * 100).toFixed(0)}%)`);
-          result[bestFdi] = status;
+        // 겹침 높은 순 정렬
+        matches.sort((a, b) => b.overlap - a.overlap);
+
+        if (matches.length > 0) {
+          condMatches.push({
+            det: condDet,
+            status,
+            fdi: matches[0].fdi,
+            overlap: matches[0].overlap,
+          });
         }
+      }
+    }
+
+    // Step 2b: 1:1 매핑 - 같은 치아에 여러 감지가 겹치면 재배정
+    // 겹침 높은 순으로 정렬하여 우선 배정
+    condMatches.sort((a, b) => b.overlap - a.overlap);
+
+    const assignedFdis = new Set<number>();
+
+    for (const match of condMatches) {
+      if (!assignedFdis.has(match.fdi)) {
+        // 이 치아에 아직 배정 안 됨 → 바로 배정
+        assignedFdis.add(match.fdi);
+        result[match.fdi] = match.status;
+        console.log(`[매핑] ${match.det.className} → #${match.fdi} (겹침: ${(match.overlap * 100).toFixed(0)}%)`);
+      } else {
+        // 이미 다른 감지가 배정됨 → 차선책 치아 찾기
+        const condCenterX = match.det.bbox.x + match.det.bbox.w / 2;
+        let bestAltFdi = 0;
+        let bestAltOverlap = 0.1;
+
+        for (const [fdi, toothDet] of toothMap) {
+          if (assignedFdis.has(fdi)) continue; // 이미 배정된 치아 제외
+          const overlap = bboxOverlap(match.det.bbox, toothDet.bbox);
+          if (overlap > bestAltOverlap) {
+            bestAltOverlap = overlap;
+            bestAltFdi = fdi;
+          }
+        }
+
+        // 겹침으로 못 찾으면 가장 가까운 미배정 치아
+        if (!bestAltFdi) {
+          let bestDist = Infinity;
+          for (const [fdi, toothDet] of toothMap) {
+            if (assignedFdis.has(fdi)) continue;
+            const toothCenterX = toothDet.bbox.x + toothDet.bbox.w / 2;
+            const dist = Math.abs(condCenterX - toothCenterX);
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestAltFdi = fdi;
+            }
+          }
+        }
+
+        if (bestAltFdi) {
+          assignedFdis.add(bestAltFdi);
+          result[bestAltFdi] = match.status;
+          console.log(`[매핑] ${match.det.className} → #${bestAltFdi} (재배정, 원래 #${match.fdi} 중복)`);
+        }
+      }
+    }
+
+    // Step 2c: 같은 치아에 Crown + Implant → Implant 우선
+    for (const fdi of assignedFdis) {
+      const matchesForFdi = condMatches.filter(m => m.fdi === fdi || result[fdi] !== 'present');
+      const hasImplant = condMatches.some(m =>
+        (m.fdi === fdi || assignedFdis.has(fdi)) &&
+        m.det.className === 'Implant' &&
+        bboxOverlap(m.det.bbox, toothMap.get(fdi)?.bbox || m.det.bbox) > 0.15
+      );
+      if (hasImplant && result[fdi] === 'crown') {
+        result[fdi] = 'implant';
+        console.log(`[매핑] #${fdi}: Crown + Implant 동시 → Implant 우선`);
       }
     }
 
