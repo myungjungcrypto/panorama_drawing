@@ -11,7 +11,7 @@ export interface Detection {
 // Map condition class names to ToothStatus
 const CONDITION_TO_STATUS: Record<string, ToothStatus> = {
   'Crown': 'crown',
-  'Implant': 'implant',
+  // 'Implant': 'implant',  // 임플란트는 당분간 무시
   'Missing teeth': 'missing',
   'Filling': 'present',
   'Root Canal Treatment': 'present',
