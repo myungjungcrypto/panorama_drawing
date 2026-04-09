@@ -6,6 +6,7 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { OrbitControls, Html } from '@react-three/drei';
 import ToothMesh from './ToothMesh';
 import GumMesh from './GumMesh';
+import DentalArchModel from './DentalArchModel';
 import { ALL_TEETH, TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS, getGumLineY } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
@@ -94,9 +95,15 @@ function Scene({ archFilter, showLabels }: { archFilter: ArchFilter; showLabels:
       <directionalLight position={[0, 4, -3]} intensity={0.2} color="#d0e8ff" />
       <hemisphereLight args={['#b0c4de', '#8b7355', 0.3]} />
 
+      {/* Gum base */}
       {(archFilter === 'all' || archFilter === 'upper') && <GumMesh isUpper={true} />}
       {(archFilter === 'all' || archFilter === 'lower') && <GumMesh isUpper={false} />}
 
+      {/* GLB dental arch models (realistic tooth shapes) */}
+      {(archFilter === 'all' || archFilter === 'upper') && <DentalArchModel isUpper={true} />}
+      {(archFilter === 'all' || archFilter === 'lower') && <DentalArchModel isUpper={false} />}
+
+      {/* Individual tooth status overlays (crown color, missing wireframe, etc.) */}
       {filteredTeeth.map((t) => (
         <ToothMesh key={t.fdi} fdi={t.fdi} />
       ))}
