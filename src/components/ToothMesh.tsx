@@ -16,13 +16,15 @@ interface ToothMeshProps {
 // Status-based color and material config
 function getStatusAppearance(status: ToothStatus, isSelected: boolean, isHovered: boolean) {
   const base = {
-    color: '#f5f0e8',
+    color: '#ede8d0',
+    emissive: '#000000',
     opacity: 1,
     wireframe: false,
     transparent: false,
-    roughness: 0.3,
-    metalness: 0.05,
+    roughness: 0.25,
+    metalness: 0.02,
     side: THREE.FrontSide as THREE.Side,
+    envMapIntensity: 0.5,
   };
 
   switch (status) {
@@ -30,6 +32,7 @@ function getStatusAppearance(status: ToothStatus, isSelected: boolean, isHovered
       return {
         ...base,
         color: '#ff4444',
+        emissive: '#330000',
         opacity: isHovered ? 0.4 : 0.15,
         wireframe: true,
         transparent: true,
@@ -40,27 +43,30 @@ function getStatusAppearance(status: ToothStatus, isSelected: boolean, isHovered
     case 'implant':
       return {
         ...base,
-        color: isSelected ? '#4dabf7' : isHovered ? '#b0b0b0' : '#8899aa',
-        metalness: 0.6,
-        roughness: 0.15,
+        color: isSelected ? '#4dabf7' : isHovered ? '#c0c0c0' : '#a0a8b0',
+        emissive: '#111518',
+        metalness: 0.7,
+        roughness: 0.1,
       };
     case 'crown':
       return {
         ...base,
-        color: isSelected ? '#4dabf7' : isHovered ? '#fff5cc' : '#ffd700',
-        metalness: 0.3,
-        roughness: 0.2,
+        color: isSelected ? '#4dabf7' : isHovered ? '#fff0b0' : '#f0d060',
+        emissive: isSelected ? '#0a1a3a' : '#1a1500',
+        metalness: 0.35,
+        roughness: 0.15,
       };
     case 'bridge':
       return {
         ...base,
         color: isSelected ? '#4dabf7' : isHovered ? '#c8e6c9' : '#81c784',
+        emissive: '#001a00',
         metalness: 0.15,
         roughness: 0.25,
       };
     default: // present
-      if (isSelected) return { ...base, color: '#4dabf7' };
-      if (isHovered) return { ...base, color: '#a5d8ff' };
+      if (isSelected) return { ...base, color: '#6db3f2', emissive: '#0a1530' };
+      if (isHovered) return { ...base, color: '#c8e0ff', emissive: '#050a15' };
       return base;
   }
 }
@@ -113,15 +119,19 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
       onPointerOut={() => setHoveredTooth(null)}
       geometry={geometry}
     >
-      <meshStandardMaterial
+      <meshPhysicalMaterial
         key={`${fdi}-${status}`}
         color={appearance.color}
+        emissive={appearance.emissive}
         transparent={appearance.transparent}
         opacity={appearance.opacity}
         wireframe={appearance.wireframe}
         roughness={appearance.roughness}
         metalness={appearance.metalness}
         side={appearance.side}
+        clearcoat={status === 'present' || status === 'crown' ? 0.3 : 0}
+        clearcoatRoughness={0.2}
+        envMapIntensity={appearance.envMapIntensity}
       />
     </mesh>
   );

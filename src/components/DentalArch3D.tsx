@@ -86,10 +86,13 @@ function Scene({ archFilter, showLabels }: { archFilter: ArchFilter; showLabels:
 
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 8, 5]} intensity={0.8} />
-      <directionalLight position={[-5, 5, -5]} intensity={0.3} />
-      <directionalLight position={[0, -3, 5]} intensity={0.15} />
+      {/* Improved lighting for dental visualization */}
+      <ambientLight intensity={0.4} />
+      <directionalLight position={[3, 8, 6]} intensity={1.0} color="#ffffff" />
+      <directionalLight position={[-4, 6, -4]} intensity={0.4} color="#e8e0ff" />
+      <directionalLight position={[0, -2, 6]} intensity={0.25} color="#ffe8d0" />
+      <directionalLight position={[0, 4, -3]} intensity={0.2} color="#d0e8ff" />
+      <hemisphereLight args={['#b0c4de', '#8b7355', 0.3]} />
 
       {(archFilter === 'all' || archFilter === 'upper') && <GumMesh isUpper={true} />}
       {(archFilter === 'all' || archFilter === 'lower') && <GumMesh isUpper={false} />}

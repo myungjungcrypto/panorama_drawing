@@ -10,98 +10,121 @@ interface GumMeshProps {
 
 export default function GumMesh({ isUpper }: GumMeshProps) {
   const geometry = useMemo(() => {
-    const points = getArchCurvePoints(isUpper, 64);
+    const points = getArchCurvePoints(isUpper, 80);
 
-    // Gum cross-section dimensions
-    const outerWidth = 0.55;  // how far outward
-    const innerWidth = 0.45;  // how far inward
-    const gumHeight = 0.55;   // total height of gum base
-    const topRound = 0.08;    // slight rounding on top edge
+    // Gum cross-section: thicker, more anatomical
+    const outerWidth = 0.50;
+    const innerWidth = 0.40;
+    const gumHeight = 0.50;
 
     const vertices: number[] = [];
     const indices: number[] = [];
+    const uvs: number[] = [];
 
-    // For each point along the arch, create a cross-section profile
-    // Cross-section (7 points):
-    //   0: outer-bottom, 1: outer-mid, 2: outer-top
-    //   3: top-center (ridge)
-    //   4: inner-top, 5: inner-mid, 6: inner-bottom
-    //   7: bottom-center
-    const PROFILE_POINTS = 8;
+    // 12-point cross-section profile for smoother shape
+    const PROFILE_POINTS = 12;
 
     for (let i = 0; i < points.length; i++) {
       const p = points[i];
       const next = points[Math.min(i + 1, points.length - 1)];
       const prev = points[Math.max(i - 1, 0)];
 
-      // Direction along the curve
       const dx = next.x - prev.x;
       const dz = next.z - prev.z;
       const len = Math.sqrt(dx * dx + dz * dz) || 1;
 
-      // Normal perpendicular to curve (outward direction in xz plane)
+      // Normal perpendicular to curve (outward)
       const nx = -dz / len;
       const nz = dx / len;
 
-      // Y positions
       const yBase = p.y;
       const yBottom = isUpper ? yBase : yBase - gumHeight;
       const yTop = isUpper ? yBase + gumHeight : yBase;
-      const yMid = (yBottom + yTop) / 2;
 
-      // Profile vertices (going around the cross-section)
-      // Outer side
-      vertices.push(
-        p.x + nx * outerWidth, yBottom, p.z + nz * outerWidth,  // 0: outer-bottom
-        p.x + nx * (outerWidth + 0.05), yMid, p.z + nz * (outerWidth + 0.05),    // 1: outer-mid (slight bulge)
-        p.x + nx * outerWidth, yTop - topRound, p.z + nz * outerWidth,   // 2: outer-top
-      );
-      // Top ridge
-      vertices.push(
-        p.x + nx * (outerWidth * 0.3), yTop, p.z + nz * (outerWidth * 0.3),  // 3: top-center ridge
-      );
-      // Inner side
-      vertices.push(
-        p.x - nx * innerWidth, yTop - topRound, p.z - nz * innerWidth,   // 4: inner-top
-        p.x - nx * (innerWidth + 0.05), yMid, p.z - nz * (innerWidth + 0.05),    // 5: inner-mid (slight bulge)
-        p.x - nx * innerWidth, yBottom, p.z - nz * innerWidth,  // 6: inner-bottom
-      );
-      // Bottom
-      vertices.push(
-        p.x, yBottom - 0.02, p.z,  // 7: bottom-center (slightly below for flat bottom)
-      );
-    }
+      const uAlong = i / (points.length - 1);
 
-    // Create faces between consecutive cross-sections
-    for (let i = 0; i < points.length - 1; i++) {
-      const base = i * PROFILE_POINTS;
-      const nextBase = (i + 1) * PROFILE_POINTS;
-
+      // Generate smooth cross-section using angle sweep
       for (let j = 0; j < PROFILE_POINTS; j++) {
-        const j2 = (j + 1) % PROFILE_POINTS;
-        indices.push(
-          base + j, nextBase + j, nextBase + j2,
-          base + j, nextBase + j2, base + j2,
-        );
+        const angle = (j / (PROFILE_POINTS - 1)) * Math.PI * 2;
+
+        // Asymmetric profile: outer side is thicker than inner
+        let radius: number;
+        let yOffset: number;
+
+        if (angle <= Math.PI) {
+          // Outer half (0 to PI)
+          const t = angle / Math.PI;
+          radius = outerWidth * (0.8 + 0.25 * Math.sin(angle));
+          yOffset = yBottom + (yTop - yBottom) * t;
+        } else {
+          // Inner half (PI to 2PI)
+          const t = (angle - Math.PI) / Math.PI;
+          radius = -innerWidth * (0.8 + 0.2 * Math.sin(angle - Math.PI));
+          yOffset = yTop - (yTop - yBottom) * t;
+        }
+
+        const vx = p.x + nx * radius;
+        const vz = p.z + nz * radius;
+
+        vertices.push(vx, yOffset, vz);
+        uvs.push(uAlong, j / (PROFILE_POINTS - 1));
       }
     }
 
-    // Cap the two ends
-    for (const endIdx of [0, points.length - 1]) {
-      const base = endIdx * PROFILE_POINTS;
-      // Simple fan from center to perimeter
+    // Create faces
+    for (let i = 0; i < points.length - 1; i++) {
+      for (let j = 0; j < PROFILE_POINTS - 1; j++) {
+        const a = i * PROFILE_POINTS + j;
+        const b = a + 1;
+        const c = (i + 1) * PROFILE_POINTS + j;
+        const d = c + 1;
+
+        indices.push(a, c, b);
+        indices.push(b, c, d);
+      }
+      // Close the loop
+      const a = i * PROFILE_POINTS + (PROFILE_POINTS - 1);
+      const b = i * PROFILE_POINTS;
+      const c = (i + 1) * PROFILE_POINTS + (PROFILE_POINTS - 1);
+      const d = (i + 1) * PROFILE_POINTS;
+      indices.push(a, c, b);
+      indices.push(b, c, d);
+    }
+
+    // End caps
+    for (const endI of [0, points.length - 1]) {
+      const center = endI * PROFILE_POINTS;
+      // Calculate center point
+      let cx = 0, cy = 0, cz = 0;
+      for (let j = 0; j < PROFILE_POINTS; j++) {
+        const idx = center + j;
+        cx += vertices[idx * 3];
+        cy += vertices[idx * 3 + 1];
+        cz += vertices[idx * 3 + 2];
+      }
+      cx /= PROFILE_POINTS;
+      cy /= PROFILE_POINTS;
+      cz /= PROFILE_POINTS;
+
+      // Add center vertex
+      const centerIdx = vertices.length / 3;
+      vertices.push(cx, cy, cz);
+      uvs.push(endI === 0 ? 0 : 1, 0.5);
+
+      // Fan triangles
       for (let j = 0; j < PROFILE_POINTS; j++) {
         const j2 = (j + 1) % PROFILE_POINTS;
-        if (endIdx === 0) {
-          indices.push(base + 7, base + j, base + j2);
+        if (endI === 0) {
+          indices.push(centerIdx, center + j2, center + j);
         } else {
-          indices.push(base + 7, base + j2, base + j);
+          indices.push(centerIdx, center + j, center + j2);
         }
       }
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
     geo.setIndex(indices);
     geo.computeVertexNormals();
     return geo;
@@ -109,10 +132,12 @@ export default function GumMesh({ isUpper }: GumMeshProps) {
 
   return (
     <mesh geometry={geometry}>
-      <meshStandardMaterial
-        color="#e07070"
-        roughness={0.55}
+      <meshPhysicalMaterial
+        color="#d46b6b"
+        roughness={0.65}
         metalness={0.0}
+        clearcoat={0.1}
+        clearcoatRoughness={0.8}
         side={THREE.DoubleSide}
       />
     </mesh>
