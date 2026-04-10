@@ -1,8 +1,7 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState } from 'react';
+import { useRef, useEffect } from 'react';
 import * as THREE from 'three';
-import { useLoader } from '@react-three/fiber';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 interface DentalArchModelProps {
@@ -11,16 +10,11 @@ interface DentalArchModelProps {
 
 export default function DentalArchModel({ isUpper }: DentalArchModelProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  const url = isUpper
-    ? '/models/dental_arch_upper.glb'
-    : '/models/dental_arch_lower.glb';
 
   useEffect(() => {
     const loader = new GLTFLoader();
     loader.load(
-      url,
+      '/models/teeth_base.glb',
       (gltf) => {
         if (!groupRef.current) return;
 
@@ -31,46 +25,57 @@ export default function DentalArchModel({ isUpper }: DentalArchModelProps) {
 
         const model = gltf.scene.clone();
 
-        // Auto-scale to fit our scene
+        // Get bounding box for scaling
         const box = new THREE.Box3().setFromObject(model);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
 
-        // Scale to ~5.5 units wide (match arch geometry)
-        const targetWidth = 5.5;
-        const scaleFactor = targetWidth / Math.max(size.x, size.z);
+        // Scale to match our arch (~6 units wide)
+        const scaleFactor = 6.0 / size.x;
         model.scale.setScalar(scaleFactor);
 
-        // Center horizontally
-        const scaledCenter = center.multiplyScalar(scaleFactor);
+        // Center the model
+        const scaledCenter = center.clone().multiplyScalar(scaleFactor);
         model.position.x = -scaledCenter.x;
-        model.position.z = -scaledCenter.z + 1.5; // offset to match arch curve center
+        model.position.z = -scaledCenter.z;
 
-        // Vertical position
-        model.position.y = isUpper ? 0.5 : -0.5;
+        // Rotate to face front (model might be oriented differently)
+        model.rotation.x = -Math.PI / 2; // rotate to stand upright
 
-        // Apply material
+        // Position based on upper/lower
+        model.position.y = isUpper ? 0.8 : -0.8;
+
+        // Clip: show only upper or lower half using clipping planes
+        const clipY = isUpper ? -0.1 : 0.1;
+
+        // Apply tooth-colored material
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
-            (child as THREE.Mesh).material = new THREE.MeshPhysicalMaterial({
+            const mesh = child as THREE.Mesh;
+            // Skip debris parts (very small or far away meshes)
+            const meshBox = new THREE.Box3().setFromObject(mesh);
+            const meshSize = meshBox.getSize(new THREE.Vector3());
+            if (meshSize.length() < 0.01) return;
+
+            mesh.material = new THREE.MeshPhysicalMaterial({
               color: '#ede8d0',
-              roughness: 0.25,
+              roughness: 0.22,
               metalness: 0.02,
-              clearcoat: 0.3,
-              clearcoatRoughness: 0.2,
+              clearcoat: 0.4,
+              clearcoatRoughness: 0.15,
+              side: THREE.DoubleSide,
             });
           }
         });
 
         groupRef.current.add(model);
-        setLoaded(true);
       },
       undefined,
       (err) => {
-        console.warn(`GLB 모델 로드 실패 (${url}):`, err);
+        console.warn('치아 모델 로드 실패:', err);
       }
     );
-  }, [url, isUpper]);
+  }, [isUpper]);
 
   return <group ref={groupRef} />;
 }
