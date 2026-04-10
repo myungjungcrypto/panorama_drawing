@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>치과 세미나 포스터</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: #0a0a0a;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+  }
+
+  .poster {
+    width: 1080px;
+    height: 1920px;
+    background: linear-gradient(180deg, #0d1117 0%, #131a2b 30%, #0f1923 70%, #0d1117 100%);
+    position: relative;
+    overflow: hidden;
+    color: #ffffff;
+  }
+
+  /* Background decorations */
+  .bg-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(74, 144, 217, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(74, 144, 217, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  .bg-glow-top {
+    position: absolute;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 800px;
+    height: 600px;
+    background: radial-gradient(ellipse, rgba(74, 144, 217, 0.12) 0%, transparent 70%);
+  }
+
+  .bg-glow-mid {
+    position: absolute;
+    top: 750px;
+    left: -100px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(99, 202, 255, 0.06) 0%, transparent 70%);
+  }
+
+  .bg-glow-bottom {
+    position: absolute;
+    bottom: -100px;
+    right: -100px;
+    width: 600px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(74, 144, 217, 0.08) 0%, transparent 70%);
+  }
+
+  .content {
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 60px 60px 50px;
+  }
+
+  /* ===== Top badge ===== */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(74, 144, 217, 0.15);
+    border: 1px solid rgba(74, 144, 217, 0.3);
+    border-radius: 100px;
+    padding: 10px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #7db8f0;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    align-self: flex-start;
+    margin-bottom: 36px;
+  }
+
+  .badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #4A90D9;
+    box-shadow: 0 0 12px rgba(74, 144, 217, 0.6);
+  }
+
+  /* ===== Title ===== */
+  .title-section {
+    margin-bottom: 48px;
+  }
+
+  .title-main {
+    font-size: 62px;
+    font-weight: 900;
+    line-height: 1.2;
+    letter-spacing: -1px;
+    margin-bottom: 20px;
+  }
+
+  .title-highlight {
+    background: linear-gradient(135deg, #4A90D9 0%, #63caff 50%, #4A90D9 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .title-sub {
+    font-size: 24px;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.5;
+  }
+
+  /* ===== Visual section ===== */
+  .visual-section {
+    margin-bottom: 44px;
+  }
+
+  .visual-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 32px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+  }
+
+  .visual-card {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .visual-card-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+
+  /* Panorama mockup */
+  .pano-mockup {
+    width: 100%;
+    height: 140px;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .pano-arch {
+    width: 80%;
+    height: 50px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    border-radius: 0 0 100px 100px;
+    border-top: none;
+    position: relative;
+    top: -10px;
+  }
+
+  .pano-arch::before {
+    content: '';
+    position: absolute;
+    width: 80%;
+    height: 40px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 100px 100px 0 0;
+    border-bottom: none;
+    top: -50px;
+    left: 10%;
+  }
+
+  .pano-dots {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 4px;
+  }
+
+  .pano-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+  }
+
+  .pano-dot.active { background: #4A90D9; }
+
+  /* 3D mockup */
+  .three-d-mockup {
+    width: 100%;
+    height: 140px;
+    background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .tooth {
+    width: 16px;
+    height: 28px;
+    border-radius: 4px 4px 2px 2px;
+    margin: 0 1px;
+    display: inline-block;
+  }
+
+  .tooth-row {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+  }
+
+  .tooth-row.lower {
+    align-items: flex-start;
+    margin-top: 4px;
+  }
+
+  .tooth.present { background: #ede8d0; border: 1px solid #ccc5a8; }
+  .tooth.missing { background: transparent; border: 1.5px dashed #ff4444; opacity: 0.5; }
+  .tooth.crown { background: #f0d060; border: 1px solid #d4b030; }
+  .tooth.implant { background: #a0a8b0; border: 1px solid #808890; }
+
+  .arrow-between {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .arrow-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(74, 144, 217, 0.15);
+    border: 1px solid rgba(74, 144, 217, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #4A90D9;
+    font-size: 24px;
+  }
+
+  /* ===== Features ===== */
+  .features-section {
+    margin-bottom: 44px;
+  }
+
+  .section-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: #4A90D9;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .features-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .feature-card {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 16px;
+    padding: 28px 32px;
+    transition: all 0.3s;
+  }
+
+  .feature-num {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .feature-num.f1 { background: linear-gradient(135deg, #4A90D9, #63caff); color: #fff; }
+  .feature-num.f2 { background: linear-gradient(135deg, #6366f1, #a78bfa); color: #fff; }
+  .feature-num.f3 { background: linear-gradient(135deg, #10b981, #34d399); color: #fff; }
+
+  .feature-text h3 {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .feature-text p {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.45);
+    line-height: 1.5;
+  }
+
+  /* ===== Treatment plan section ===== */
+  .treatment-section {
+    margin-bottom: 44px;
+  }
+
+  .treatment-box {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 20px;
+    padding: 32px;
+  }
+
+  .treatment-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .treatment-state {
+    text-align: center;
+    flex: 1;
+  }
+
+  .state-visual {
+    width: 100%;
+    height: 80px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    font-size: 36px;
+  }
+
+  .state-current {
+    background: rgba(255, 68, 68, 0.1);
+    border: 1.5px dashed rgba(255, 68, 68, 0.3);
+  }
+
+  .state-planned {
+    background: rgba(74, 144, 217, 0.1);
+    border: 1.5px solid rgba(74, 144, 217, 0.3);
+    position: relative;
+  }
+
+  .state-planned::after {
+    content: '계획';
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    font-size: 11px;
+    background: rgba(74, 144, 217, 0.3);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #7db8f0;
+  }
+
+  .state-result {
+    background: rgba(16, 185, 129, 0.1);
+    border: 1.5px solid rgba(16, 185, 129, 0.3);
+  }
+
+  .state-label {
+    font-size: 15px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.6);
+  }
+
+  .state-label strong {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .flow-arrow {
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.2);
+    flex-shrink: 0;
+  }
+
+  /* ===== Bottom info ===== */
+  .bottom-section {
+    margin-top: auto;
+  }
+
+  .divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(74, 144, 217, 0.3), transparent);
+    margin-bottom: 40px;
+  }
+
+  .info-grid {
+    display: flex;
+    gap: 40px;
+    margin-bottom: 32px;
+  }
+
+  .info-item {
+    flex: 1;
+  }
+
+  .info-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.3);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .info-value {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  .bottom-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  .qr-section {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .qr-box {
+    width: 90px;
+    height: 90px;
+    background: #fff;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+  }
+
+  .qr-placeholder {
+    width: 100%;
+    height: 100%;
+    background:
+      linear-gradient(45deg, #333 25%, transparent 25%),
+      linear-gradient(-45deg, #333 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #333 75%),
+      linear-gradient(-45deg, transparent 75%, #333 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+    border-radius: 4px;
+    position: relative;
+  }
+
+  .qr-placeholder::after {
+    content: 'QR';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+    color: #333;
+    background: rgba(255,255,255,0.8);
+    border-radius: 4px;
+  }
+
+  .qr-text {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1.5;
+  }
+
+  .qr-url {
+    font-size: 18px;
+    font-weight: 600;
+    color: #4A90D9;
+  }
+
+  .credit {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.2);
+    text-align: right;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<div class="poster">
+  <div class="bg-grid"></div>
+  <div class="bg-glow-top"></div>
+  <div class="bg-glow-mid"></div>
+  <div class="bg-glow-bottom"></div>
+
+  <div class="content">
+
+    <!-- Badge -->
+    <div class="badge">
+      <span class="badge-dot"></span>
+      Dental AI Seminar 2026
+    </div>
+
+    <!-- Title -->
+    <div class="title-section">
+      <h1 class="title-main">
+        파노라마 X-ray,<br>
+        <span class="title-highlight">3D로 보여주는</span><br>
+        상담의 차이
+      </h1>
+      <p class="title-sub">
+        AI 치아 분석 + 3D 시각화로 환자가 이해하는 치료 계획
+      </p>
+    </div>
+
+    <!-- Visual: Panorama → 3D -->
+    <div class="visual-section">
+      <div class="visual-box">
+        <div class="visual-card">
+          <div class="visual-card-label">파노라마 X-ray</div>
+          <div class="pano-mockup">
+            <div class="pano-arch"></div>
+            <div class="pano-dots">
+              <div class="pano-dot"></div>
+              <div class="pano-dot active"></div>
+              <div class="pano-dot active"></div>
+              <div class="pano-dot"></div>
+              <div class="pano-dot"></div>
+              <div class="pano-dot active"></div>
+              <div class="pano-dot"></div>
+              <div class="pano-dot"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="arrow-between">
+          <div class="arrow-icon">→</div>
+        </div>
+
+        <div class="visual-card">
+          <div class="visual-card-label">3D 시각화</div>
+          <div class="three-d-mockup">
+            <div>
+              <div class="tooth-row">
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth crown"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth missing"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth implant"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth crown"></div>
+                <div class="tooth present"></div>
+              </div>
+              <div class="tooth-row lower">
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth missing"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth missing"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+                <div class="tooth present"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Features -->
+    <div class="features-section">
+      <div class="section-label">Core Features</div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-num f1">01</div>
+          <div class="feature-text">
+            <h3>AI 자동 분석</h3>
+            <p>파노라마 업로드 한 장으로 32개 치아 상태를 자동 감지</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num f2">02</div>
+          <div class="feature-text">
+            <h3>인터랙티브 3D 시각화</h3>
+            <p>환자가 직접 회전하며 자신의 치아 상태를 확인</p>
+          </div>
+        </div>
+        <div class="feature-card">
+          <div class="feature-num f3">03</div>
+          <div class="feature-text">
+            <h3>치료 계획 시뮬레이션</h3>
+            <p>현재 상태와 치료 후 모습을 3D로 비교</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Treatment plan flow -->
+    <div class="treatment-section">
+      <div class="section-label">Treatment Planning</div>
+      <div class="treatment-box">
+        <div class="treatment-flow">
+          <div class="treatment-state">
+            <div class="state-visual state-current">🦷</div>
+            <div class="state-label"><strong>현재</strong><br>상실 치아</div>
+          </div>
+          <div class="flow-arrow">▸</div>
+          <div class="treatment-state">
+            <div class="state-visual state-planned">🔩</div>
+            <div class="state-label"><strong>계획</strong><br>임플란트</div>
+          </div>
+          <div class="flow-arrow">▸</div>
+          <div class="treatment-state">
+            <div class="state-visual state-result">✨</div>
+            <div class="state-label"><strong>완료</strong><br>3D 미리보기</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom -->
+    <div class="bottom-section">
+      <div class="divider"></div>
+
+      <div class="info-grid">
+        <div class="info-item">
+          <div class="info-label">일시</div>
+          <div class="info-value">2026. 00. 00 (토)<br>14:00 - 17:00</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">장소</div>
+          <div class="info-value">서울 OOO 센터<br>0층 세미나실</div>
+        </div>
+        <div class="info-item">
+          <div class="info-label">연사</div>
+          <div class="info-value">OOO 원장<br>OOO 치과의원</div>
+        </div>
+      </div>
+
+      <div class="bottom-bar">
+        <div class="qr-section">
+          <div class="qr-box">
+            <div class="qr-placeholder"></div>
+          </div>
+          <div>
+            <div class="qr-text">라이브 데모</div>
+            <div class="qr-url">nanbalchi.com</div>
+          </div>
+        </div>
+        <div class="credit">
+          Dental Panorama<br>3D Visualization
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
