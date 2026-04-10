@@ -231,7 +231,7 @@ export default function DentalArch3D() {
 
       {/* Status bar */}
       <div className="px-4 py-2 border-t border-gray-100 bg-gray-50 flex items-center justify-between text-xs text-gray-500">
-        <span>드래그: 회전 | 스크롤: 줌 | 더블클릭: 상실 토글</span>
+        <span>드래그: 회전 | 스크롤: 줌 | 클릭: 치아 선택</span>
         <span>
           존재: <strong className="text-green-600">{presentCount}</strong> |
           상실: <strong className="text-red-500">{missingCount}</strong> / 32

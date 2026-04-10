@@ -41,7 +41,6 @@ function ToothCell({ fdi }: { fdi: number }) {
   const status = useTeethState((s) => s.teeth[fdi]);
   const selectedTooth = useTeethState((s) => s.selectedTooth);
   const hoveredTooth = useTeethState((s) => s.hoveredTooth);
-  const toggleTooth = useTeethState((s) => s.toggleTooth);
   const setSelectedTooth = useTeethState((s) => s.setSelectedTooth);
   const setHoveredTooth = useTeethState((s) => s.setHoveredTooth);
   const planned = useTeethState((s) => s.treatmentPlan[fdi]);
@@ -53,7 +52,6 @@ function ToothCell({ fdi }: { fdi: number }) {
   return (
     <button
       onClick={() => {
-        toggleTooth(fdi);
         setSelectedTooth(fdi);
       }}
       onMouseEnter={() => setHoveredTooth(fdi)}
@@ -107,7 +105,7 @@ export default function DentalChart2D() {
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-700">치아 차트 (클릭: 존재/상실 토글)</h3>
+        <h3 className="text-sm font-semibold text-gray-700">치아 차트 (클릭: 치아 선택)</h3>
         <button
           onClick={resetAll}
           className="text-xs text-blue-500 hover:text-blue-700 cursor-pointer"

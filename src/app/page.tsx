@@ -92,8 +92,8 @@ export default function Home() {
               <li>3. 결과 확인 후 수동 보정</li>
               <li>4. 치아 선택 → 치료 계획 설정</li>
               <li>5. &quot;비교&quot; 보기로 현재/계획 비교</li>
-              <li className="mt-1 pt-1 border-t border-gray-100">- 차트 클릭 → 존재/상실 토글</li>
-              <li>- 우측 패널 → 세부 상태/치료 계획</li>
+              <li className="mt-1 pt-1 border-t border-gray-100">- 차트/3D 클릭 → 치아 선택</li>
+              <li>- 우측 패널 → 상태 변경/치료 계획</li>
               <li>- 드래그 → 3D 회전</li>
             </ul>
           </div>

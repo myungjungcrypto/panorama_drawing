@@ -121,7 +121,6 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
   const hoveredTooth = useTeethState((s) => s.hoveredTooth);
   const setSelectedTooth = useTeethState((s) => s.setSelectedTooth);
   const setHoveredTooth = useTeethState((s) => s.setHoveredTooth);
-  const toggleTooth = useTeethState((s) => s.toggleTooth);
   const treatmentStatus = useTeethState((s) => s.treatmentPlan[fdi]);
   const viewMode = useTeethState((s) => s.viewMode);
 
@@ -150,7 +149,6 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
 
   const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    toggleTooth(fdi);
   };
 
   // Upper teeth (quadrants 1,2): flip upside down so roots point up, crowns face down
