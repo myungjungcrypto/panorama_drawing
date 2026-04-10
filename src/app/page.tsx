@@ -73,6 +73,13 @@ export default function Home() {
                 <div className="w-4 h-4 rounded bg-blue-400" />
                 <span className="text-gray-600">선택됨</span>
               </div>
+              <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                <p className="text-[10px] text-gray-400 mb-1.5">치료 계획</p>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-4 h-4 rounded border-2 border-dashed border-indigo-300 bg-indigo-50 animate-pulse" />
+                  <span className="text-gray-600">계획 오버레이</span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -83,8 +90,10 @@ export default function Home() {
               <li>1. 파노라마 업로드</li>
               <li>2. &quot;AI 자동 분석&quot; 클릭</li>
               <li>3. 결과 확인 후 수동 보정</li>
+              <li>4. 치아 선택 → 치료 계획 설정</li>
+              <li>5. &quot;비교&quot; 보기로 현재/계획 비교</li>
               <li className="mt-1 pt-1 border-t border-gray-100">- 차트 클릭 → 존재/상실 토글</li>
-              <li>- 우측 패널 → 세부 상태 변경</li>
+              <li>- 우측 패널 → 세부 상태/치료 계획</li>
               <li>- 드래그 → 3D 회전</li>
             </ul>
           </div>

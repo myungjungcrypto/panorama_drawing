@@ -9,6 +9,7 @@ import GumMesh from './GumMesh';
 import { ALL_TEETH, TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS, getGumLineY } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
+import { ViewMode } from '@/types/dental';
 
 type ViewPreset = 'front' | 'top' | 'right' | 'left';
 type ArchFilter = 'all' | 'upper' | 'lower';
@@ -116,9 +117,13 @@ export default function DentalArch3D() {
   const [showLabels, setShowLabels] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const teeth = useTeethState((s) => s.teeth);
+  const viewMode = useTeethState((s) => s.viewMode);
+  const setViewMode = useTeethState((s) => s.setViewMode);
+  const treatmentPlan = useTeethState((s) => s.treatmentPlan);
 
   const missingCount = Object.values(teeth).filter((s) => s === 'missing').length;
   const presentCount = 32 - missingCount;
+  const planCount = Object.keys(treatmentPlan).length;
 
   const handleScreenshot = useCallback(() => {
     const canvas = document.querySelector('canvas');
@@ -166,6 +171,25 @@ export default function DentalArch3D() {
           ))}
         </div>
         <div className="flex items-center gap-1">
+          {planCount > 0 && (
+            <>
+              <span className="text-xs text-gray-500 mr-1">보기:</span>
+              {(['current', 'compare', 'planned'] as ViewMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
+                    ${viewMode === mode
+                      ? 'bg-indigo-500 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                    }`}
+                >
+                  {{ current: '현재', planned: '계획', compare: '비교' }[mode]}
+                </button>
+              ))}
+              <span className="mx-1 text-gray-300">|</span>
+            </>
+          )}
           <button
             onClick={() => setShowLabels(!showLabels)}
             className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
@@ -211,6 +235,9 @@ export default function DentalArch3D() {
         <span>
           존재: <strong className="text-green-600">{presentCount}</strong> |
           상실: <strong className="text-red-500">{missingCount}</strong> / 32
+          {planCount > 0 && (
+            <> | 계획: <strong className="text-indigo-600">{planCount}</strong>개</>
+          )}
         </span>
       </div>
     </div>

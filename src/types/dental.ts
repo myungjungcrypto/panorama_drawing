@@ -2,6 +2,10 @@ export type ToothType = 'incisor' | 'canine' | 'premolar' | 'molar';
 
 export type ToothStatus = 'present' | 'missing' | 'implant' | 'crown' | 'bridge';
 
+export type TreatmentStatus = 'implant' | 'crown' | 'bridge';
+
+export type ViewMode = 'current' | 'planned' | 'compare';
+
 export type Quadrant = 1 | 2 | 3 | 4;
 
 export interface ToothInfo {

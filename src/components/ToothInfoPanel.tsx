@@ -1,8 +1,8 @@
 'use client';
 
-import { useTeethState } from '@/hooks/useTeethState';
+import { useTeethState, getValidTreatments } from '@/hooks/useTeethState';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
-import { ToothStatus } from '@/types/dental';
+import { ToothStatus, TreatmentStatus } from '@/types/dental';
 
 const STATUS_CONFIG: Record<ToothStatus, { label: string; color: string; bg: string; border: string }> = {
   present:  { label: '존재',      color: 'text-green-600', bg: 'bg-green-50',  border: 'border-green-200' },
@@ -10,6 +10,12 @@ const STATUS_CONFIG: Record<ToothStatus, { label: string; color: string; bg: str
   implant:  { label: '임플란트',  color: 'text-blue-600',  bg: 'bg-blue-50',   border: 'border-blue-200' },
   crown:    { label: '크라운',    color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-200' },
   bridge:   { label: '브릿지',    color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+};
+
+const TREATMENT_LABELS: Record<TreatmentStatus, string> = {
+  implant: '임플란트',
+  crown: '크라운',
+  bridge: '브릿지',
 };
 
 const ALL_STATUSES: ToothStatus[] = ['present', 'missing', 'implant', 'crown', 'bridge'];
@@ -26,10 +32,14 @@ export default function ToothInfoPanel() {
   const hoveredTooth = useTeethState((s) => s.hoveredTooth);
   const teeth = useTeethState((s) => s.teeth);
   const setToothStatus = useTeethState((s) => s.setToothStatus);
+  const treatmentPlan = useTeethState((s) => s.treatmentPlan);
+  const setTreatmentPlan = useTeethState((s) => s.setTreatmentPlan);
+  const removeTreatmentPlan = useTeethState((s) => s.removeTreatmentPlan);
 
   const activeFdi = hoveredTooth ?? selectedTooth;
   const info = activeFdi ? TOOTH_MAP[activeFdi] : null;
   const status = activeFdi ? teeth[activeFdi] : null;
+  const planned = activeFdi ? treatmentPlan[activeFdi] : undefined;
 
   if (!activeFdi || !info || !status) {
     return (
@@ -43,6 +53,7 @@ export default function ToothInfoPanel() {
   }
 
   const currentConfig = STATUS_CONFIG[status];
+  const validTreatments = getValidTreatments(status);
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -94,6 +105,49 @@ export default function ToothInfoPanel() {
           })}
         </div>
       </div>
+
+      {/* Treatment plan section */}
+      {validTreatments.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-dashed border-gray-200">
+          <p className="text-[10px] text-gray-400 mb-2">치료 계획:</p>
+
+          {planned && (
+            <div className="mb-2 flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded px-2 py-1.5">
+              <span className="text-[11px] font-semibold text-indigo-700">
+                {currentConfig.label} → {TREATMENT_LABELS[planned]}
+              </span>
+              <button
+                onClick={() => removeTreatmentPlan(activeFdi)}
+                className="text-[10px] text-indigo-400 hover:text-indigo-600 cursor-pointer ml-2"
+              >
+                취소
+              </button>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-1">
+            {validTreatments.map((t) => {
+              const isPlanned = planned === t;
+              const config = STATUS_CONFIG[t];
+              return (
+                <button
+                  key={t}
+                  onClick={() => isPlanned ? removeTreatmentPlan(activeFdi) : setTreatmentPlan(activeFdi, t)}
+                  className={`
+                    py-1.5 rounded text-[11px] font-medium transition-colors cursor-pointer border border-dashed
+                    ${isPlanned
+                      ? `${config.bg} ${config.color} ${config.border} ring-1 ring-offset-1 ring-current`
+                      : `bg-white text-gray-500 border-gray-300 hover:${config.bg}`
+                    }
+                  `}
+                >
+                  {TREATMENT_LABELS[t]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

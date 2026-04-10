@@ -2,7 +2,19 @@
 
 import { useTeethState } from '@/hooks/useTeethState';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
-import { ToothStatus } from '@/types/dental';
+import { ToothStatus, TreatmentStatus } from '@/types/dental';
+
+const TREATMENT_ABBR: Record<TreatmentStatus, string> = {
+  implant: 'I',
+  crown: 'C',
+  bridge: 'B',
+};
+
+const TREATMENT_COLOR: Record<TreatmentStatus, string> = {
+  implant: 'text-blue-500',
+  crown: 'text-yellow-500',
+  bridge: 'text-emerald-500',
+};
 
 const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11];
 const UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28];
@@ -32,6 +44,7 @@ function ToothCell({ fdi }: { fdi: number }) {
   const toggleTooth = useTeethState((s) => s.toggleTooth);
   const setSelectedTooth = useTeethState((s) => s.setSelectedTooth);
   const setHoveredTooth = useTeethState((s) => s.setHoveredTooth);
+  const planned = useTeethState((s) => s.treatmentPlan[fdi]);
 
   const info = TOOTH_MAP[fdi];
   const isSelected = selectedTooth === fdi;
@@ -47,7 +60,7 @@ function ToothCell({ fdi }: { fdi: number }) {
       onMouseLeave={() => setHoveredTooth(null)}
       className={`
         w-[30px] h-[38px] rounded border-[1.5px] flex flex-col items-center justify-center
-        font-medium transition-all duration-150 cursor-pointer shrink-0
+        font-medium transition-all duration-150 cursor-pointer shrink-0 relative
         ${STATUS_STYLES[status]}
         ${isSelected ? 'ring-2 ring-blue-500 border-blue-500' : ''}
         ${isHovered && !isSelected ? 'border-blue-300 shadow-md' : ''}
@@ -56,8 +69,14 @@ function ToothCell({ fdi }: { fdi: number }) {
     >
       <span className="text-[9px] leading-tight font-bold">{fdi}</span>
       <span className="text-[7px] leading-tight">
-        {STATUS_LABELS[status]}
+        {planned
+          ? <span className={TREATMENT_COLOR[planned]}>→{TREATMENT_ABBR[planned]}</span>
+          : STATUS_LABELS[status]
+        }
       </span>
+      {planned && (
+        <span className="absolute top-0 right-0 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+      )}
     </button>
   );
 }
@@ -76,11 +95,14 @@ function ToothRow({ teeth, label }: { teeth: number[]; label: string }) {
 export default function DentalChart2D() {
   const resetAll = useTeethState((s) => s.resetAll);
   const teeth = useTeethState((s) => s.teeth);
+  const treatmentPlan = useTeethState((s) => s.treatmentPlan);
 
   const counts = Object.values(teeth).reduce((acc, s) => {
     acc[s] = (acc[s] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  const planCount = Object.keys(treatmentPlan).length;
 
   return (
     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -125,6 +147,7 @@ export default function DentalChart2D() {
         {(counts.implant || 0) > 0 && <span>임플란트: <strong className="text-blue-600">{counts.implant}</strong></span>}
         {(counts.crown || 0) > 0 && <span>크라운: <strong className="text-yellow-600">{counts.crown}</strong></span>}
         {(counts.bridge || 0) > 0 && <span>브릿지: <strong className="text-emerald-600">{counts.bridge}</strong></span>}
+        {planCount > 0 && <span>치료계획: <strong className="text-indigo-600">{planCount}</strong></span>}
       </div>
     </div>
   );
