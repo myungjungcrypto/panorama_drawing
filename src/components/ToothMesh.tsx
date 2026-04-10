@@ -64,10 +64,10 @@ function getStatusAppearance(status: ToothStatus, isSelected: boolean, isHovered
         metalness: 0.15,
         roughness: 0.25,
       };
-    default: // present - transparent so GLB model shows through
-      if (isSelected) return { ...base, color: '#6db3f2', emissive: '#0a1530', transparent: true, opacity: 0.6 };
-      if (isHovered) return { ...base, color: '#c8e0ff', emissive: '#050a15', transparent: true, opacity: 0.4 };
-      return { ...base, transparent: true, opacity: 0 }; // fully invisible when present
+    default: // present
+      if (isSelected) return { ...base, color: '#6db3f2', emissive: '#0a1530' };
+      if (isHovered) return { ...base, color: '#c8e0ff', emissive: '#050a15' };
+      return base;
       return base;
   }
 }
