@@ -91,20 +91,24 @@ function createCanineGeometry(dim: { w: number; h: number; d: number }): THREE.B
 }
 
 function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // Rounded rectangular crown with 2 cusps
+  // Rounded rectangular crown with 2 distinct cusps and central fissure
   const profile: THREE.Vector2[] = [];
-  const steps = 10;
+  const steps = 14;
 
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
-    // Slightly tapered cylinder with rounded top
     let r: number;
-    if (t < 0.7) {
-      r = dim.w * (0.40 + 0.04 * Math.sin(t / 0.7 * Math.PI));
+    if (t < 0.15) {
+      // Cervical constriction
+      r = dim.w * (0.34 + 0.06 * (t / 0.15));
+    } else if (t < 0.6) {
+      // Body: slight bulge
+      const bodyT = (t - 0.15) / 0.45;
+      r = dim.w * (0.40 + 0.04 * Math.sin(bodyT * Math.PI));
     } else {
-      // Rounded top
-      const topT = (t - 0.7) / 0.3;
-      r = dim.w * 0.40 * Math.cos(topT * Math.PI * 0.45);
+      // Occlusal taper - less aggressive to leave room for cusps
+      const topT = (t - 0.6) / 0.4;
+      r = dim.w * (0.40 - 0.08 * topT);
     }
     const y = (t - 0.45) * dim.h;
     profile.push(new THREE.Vector2(Math.max(r, 0.02), y));
@@ -113,19 +117,35 @@ function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE
   const geo = new THREE.LatheGeometry(profile, SEG);
   // Make it more oval (wider bucco-lingually)
   scaleAxis(geo, 'z', dim.d / dim.w * 0.95);
+  // Squarify the cross-section
+  squarifyGeometry(geo, 0.3, 'xz');
 
-  // Add two cusps by displacing vertices upward in cusp areas
+  // Add two cusps with central fissure
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  const topY = dim.h * 0.55 * 0.5;
   for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
-    const normalizedY = (y / dim.h) + 0.45;
 
-    if (normalizedY > 0.6) {
-      // Two cusp peaks along Z axis (buccal and lingual)
-      const cuspHeight = 0.06;
-      const cuspFactor = Math.abs(z) > dim.d * 0.15 ? cuspHeight : 0;
-      pos.setY(i, y + cuspFactor * (normalizedY - 0.6) / 0.4);
+    if (y > topY * 0.4) {
+      const t = Math.min(1, (y - topY * 0.4) / (topY * 0.6));
+      // Buccal cusp (z > 0) and lingual cusp (z < 0)
+      const buccalDist = Math.sqrt(x * x + (z - dim.d * 0.18) ** 2);
+      const lingualDist = Math.sqrt(x * x + (z + dim.d * 0.18) ** 2);
+      const cuspRadius = dim.w * 0.22;
+
+      const buccalInfluence = Math.max(0, 1 - buccalDist / cuspRadius);
+      const lingualInfluence = Math.max(0, 1 - lingualDist / cuspRadius);
+
+      // Cusp rise
+      const buccalRise = buccalInfluence * buccalInfluence * 0.10 * t;
+      const lingualRise = lingualInfluence * lingualInfluence * 0.08 * t;
+
+      // Central fissure depression
+      const fissureDepth = Math.exp(-(z * z) / (0.006)) * 0.05 * t;
+
+      pos.setY(i, y + Math.max(buccalRise, lingualRise) - fissureDepth);
     }
   }
   pos.needsUpdate = true;
@@ -134,61 +154,100 @@ function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE
 }
 
 function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // Wider, blockier crown with 4 cusps
+  // Wide blocky crown with 4 distinct cusps and cross-fissure
   const profile: THREE.Vector2[] = [];
-  const steps = 10;
+  const steps = 14;
 
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     let r: number;
-    if (t < 0.65) {
-      // Slightly tapered base with subtle cervical constriction
-      r = dim.w * (0.42 + 0.05 * Math.sin(t / 0.65 * Math.PI));
+    if (t < 0.12) {
+      // Cervical constriction
+      r = dim.w * (0.36 + 0.08 * (t / 0.12));
+    } else if (t < 0.6) {
+      // Body: wider, more cylindrical
+      const bodyT = (t - 0.12) / 0.48;
+      r = dim.w * (0.44 + 0.03 * Math.sin(bodyT * Math.PI));
     } else {
-      // Occlusal surface rounds down
-      const topT = (t - 0.65) / 0.35;
-      r = dim.w * 0.42 * Math.cos(topT * Math.PI * 0.4);
+      // Occlusal - flatten top, less taper
+      const topT = (t - 0.6) / 0.4;
+      r = dim.w * (0.44 - 0.06 * topT);
     }
     const y = (t - 0.45) * dim.h;
     profile.push(new THREE.Vector2(Math.max(r, 0.02), y));
   }
 
   const geo = new THREE.LatheGeometry(profile, SEG);
-  // Make it rectangular-ish (wider mesio-distally)
+  // Make it rectangular (wider mesio-distally)
   scaleAxis(geo, 'z', dim.d / dim.w);
+  // Squarify to reduce roundness
+  squarifyGeometry(geo, 0.35, 'xz');
 
-  // Add four cusps
+  // Add four cusps with cross-shaped fissure
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  const topY = dim.h * 0.55 * 0.5;
+
+  // Cusp positions: MB, DB, ML, DL
+  const cusps = [
+    { cx:  dim.w * 0.14, cz: -dim.d * 0.16, h: 0.12, r: dim.w * 0.20 }, // mesio-buccal
+    { cx: -dim.w * 0.14, cz: -dim.d * 0.16, h: 0.11, r: dim.w * 0.19 }, // disto-buccal
+    { cx:  dim.w * 0.14, cz:  dim.d * 0.16, h: 0.10, r: dim.w * 0.19 }, // mesio-lingual
+    { cx: -dim.w * 0.14, cz:  dim.d * 0.16, h: 0.09, r: dim.w * 0.18 }, // disto-lingual
+  ];
+
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
-    const normalizedY = (y / dim.h) + 0.45;
 
-    if (normalizedY > 0.55) {
-      // Four cusp positions
-      const cusps = [
-        { cx: -dim.w * 0.13, cz: -dim.d * 0.13, h: 0.07 },
-        { cx:  dim.w * 0.13, cz: -dim.d * 0.13, h: 0.065 },
-        { cx: -dim.w * 0.13, cz:  dim.d * 0.13, h: 0.06 },
-        { cx:  dim.w * 0.13, cz:  dim.d * 0.13, h: 0.055 },
-      ];
+    if (y > topY * 0.3) {
+      const t = Math.min(1, (y - topY * 0.3) / (topY * 0.7));
 
-      let maxCusp = 0;
+      // Cusp contributions
+      let maxCuspRise = 0;
       for (const cusp of cusps) {
         const dx = x - cusp.cx;
         const dz = z - cusp.cz;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        const influence = Math.max(0, 1 - dist / (dim.w * 0.3));
-        maxCusp = Math.max(maxCusp, influence * cusp.h);
+        const influence = Math.max(0, 1 - dist / cusp.r);
+        // Sharper cusp shape with squared influence
+        const rise = influence * influence * cusp.h * t;
+        maxCuspRise = Math.max(maxCuspRise, rise);
       }
 
-      pos.setY(i, y + maxCusp * (normalizedY - 0.55) / 0.45);
+      // Cross-shaped fissure (bucco-lingual groove along x=0, mesio-distal groove along z=0)
+      const blGrooveDepth = Math.exp(-(x * x) / 0.004) * 0.06 * t;
+      const mdGrooveDepth = Math.exp(-(z * z) / 0.008) * 0.04 * t;
+      const fissureDepth = Math.max(blGrooveDepth, mdGrooveDepth);
+
+      // Central fossa (intersection of grooves)
+      const centralFossa = Math.exp(-(x * x + z * z) / 0.008) * 0.03 * t;
+
+      pos.setY(i, y + maxCuspRise - fissureDepth - centralFossa);
     }
   }
   pos.needsUpdate = true;
 
   return geo;
+}
+
+// 원형 단면을 직사각형에 가깝게 변형 (amount: 0=원형, 1=완전 사각형)
+function squarifyGeometry(geo: THREE.BufferGeometry, amount: number, plane: 'xz') {
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const angle = Math.atan2(z, x);
+    const r = Math.sqrt(x * x + z * z);
+    if (r < 0.001) continue;
+
+    // Superellipse factor: increases radius at 45-degree angles
+    const cos4 = Math.cos(2 * angle);
+    const squareFactor = 1 + amount * 0.15 * (1 - cos4 * cos4);
+    pos.setX(i, x * squareFactor);
+    pos.setZ(i, z * squareFactor);
+  }
+  pos.needsUpdate = true;
 }
 
 function scaleAxis(geo: THREE.BufferGeometry, axis: 'x' | 'y' | 'z', scale: number) {
