@@ -3,7 +3,7 @@
 ## 사전 준비
 
 ### 1. EC2 인스턴스
-- **OS**: Ubuntu 22.04 LTS 이상
+- **OS**: Amazon Linux 2023
 - **인스턴스 유형**: t3.small 이상 (빌드 시 2GB+ 메모리 필요)
 - **스토리지**: 20GB 이상
 
@@ -27,9 +27,9 @@
 ### 최초 배포
 ```bash
 # 1. EC2에 SSH 접속
-ssh -i your-key.pem ubuntu@<EC2-IP>
+ssh -i your-key.pem ec2-user@<EC2-IP>
 
-# 2. 스크립트 다운로드
+# 2. 저장소 클론
 git clone https://github.com/myungjungcrypto/panorama_drawing.git
 cd panorama_drawing
 
@@ -39,7 +39,7 @@ sudo bash deploy/deploy.sh
 
 ### 업데이트 배포
 ```bash
-cd /home/ubuntu/panorama_drawing
+cd /home/ec2-user/panorama_drawing
 sudo bash deploy/deploy.sh
 ```
 스크립트가 자동으로 최신 코드를 pull하고 빌드 후 재시작합니다.

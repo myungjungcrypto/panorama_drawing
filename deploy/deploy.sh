@@ -1,6 +1,6 @@
 #!/bin/bash
 # =============================================================
-# 치과 파노라마 3D 시각화 - EC2 배포 스크립트
+# 치과 파노라마 3D 시각화 - EC2 배포 스크립트 (Amazon Linux 2023)
 # =============================================================
 # 사용법: sudo bash deploy.sh
 #
@@ -14,11 +14,11 @@ set -euo pipefail
 # =================== 설정 변수 ===================
 DOMAIN="nanbalchi.com"
 EMAIL="admin@nanbalchi.com"
-APP_DIR="/home/ubuntu/panorama_drawing"
+APP_DIR="/home/ec2-user/panorama_drawing"
 REPO_URL="https://github.com/myungjungcrypto/panorama_drawing.git"
 GIT_BRANCH="main"
 NODE_VERSION="20"
-APP_USER="ubuntu"
+APP_USER="ec2-user"
 
 # =================== 색상 출력 ===================
 GREEN='\033[0;32m'
@@ -39,8 +39,16 @@ fi
 # =================== Step 1: 시스템 패키지 ===================
 log_info "Step 1: 시스템 패키지 업데이트 및 설치..."
 
-apt-get update -qq
-apt-get install -y -qq nginx certbot python3-certbot-nginx git curl ufw > /dev/null 2>&1
+dnf update -y -q 2>/dev/null || yum update -y -q
+dnf install -y -q nginx git curl tar gzip bind-utils 2>/dev/null || yum install -y -q nginx git curl tar gzip bind-utils
+
+# certbot 설치 (Amazon Linux 2023)
+if ! command -v certbot &> /dev/null; then
+  dnf install -y -q certbot python3-certbot-nginx 2>/dev/null || {
+    # Amazon Linux 2인 경우 pip으로 설치
+    pip3 install certbot certbot-nginx 2>/dev/null || true
+  }
+fi
 
 log_info "시스템 패키지 설치 완료"
 
@@ -49,8 +57,8 @@ if command -v node &> /dev/null && node --version | grep -q "v${NODE_VERSION}"; 
   log_info "Step 2: Node.js $(node --version) 이미 설치됨 (건너뜀)"
 else
   log_info "Step 2: Node.js ${NODE_VERSION} LTS 설치 중..."
-  curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash - > /dev/null 2>&1
-  apt-get install -y -qq nodejs > /dev/null 2>&1
+  curl -fsSL "https://rpm.nodesource.com/setup_${NODE_VERSION}.x" | bash - > /dev/null 2>&1
+  dnf install -y -q nodejs 2>/dev/null || yum install -y -q nodejs
   log_info "Node.js $(node --version) 설치 완료"
 fi
 
@@ -68,11 +76,11 @@ if [ -f /swapfile ]; then
   log_info "Step 4: Swap 파일 이미 존재 (건너뜀)"
 else
   log_info "Step 4: 2GB Swap 파일 생성 중..."
-  fallocate -l 2G /swapfile
+  dd if=/dev/zero of=/swapfile bs=1M count=2048 status=none
   chmod 600 /swapfile
   mkswap /swapfile > /dev/null
   swapon /swapfile
-  echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  grep -q '/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
   log_info "Swap 파일 생성 완료 (2GB)"
 fi
 
@@ -107,7 +115,7 @@ sudo -u "$APP_USER" mkdir -p "$APP_DIR/logs"
 log_info "Step 8: PM2 프로세스 설정 중..."
 
 # 기존 프로세스가 있으면 삭제
-pm2 delete panorama-drawing 2>/dev/null || true
+sudo -u "$APP_USER" pm2 delete panorama-drawing 2>/dev/null || true
 
 cd "$APP_DIR"
 sudo -u "$APP_USER" pm2 start deploy/ecosystem.config.js --env production
@@ -118,7 +126,7 @@ log_info "PM2 프로세스 시작 완료"
 # =================== Step 9: PM2 시스템 시작 설정 ===================
 log_info "Step 9: PM2 시스템 시작 설정 중..."
 
-env PATH="$PATH:/usr/bin" pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" > /dev/null 2>&1
+env PATH="$PATH:/usr/bin:/usr/local/bin" pm2 startup systemd -u "$APP_USER" --hp "/home/$APP_USER" 2>/dev/null || true
 sudo -u "$APP_USER" pm2 save > /dev/null 2>&1
 
 log_info "PM2 시스템 시작 설정 완료 (재부팅 후 자동 시작)"
@@ -126,17 +134,20 @@ log_info "PM2 시스템 시작 설정 완료 (재부팅 후 자동 시작)"
 # =================== Step 10: Nginx 설정 ===================
 log_info "Step 10: Nginx 설정 중..."
 
-cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/sites-available/panorama_drawing
+# Amazon Linux는 /etc/nginx/conf.d/ 디렉토리 사용
+cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/conf.d/panorama_drawing.conf
 
-# sites-enabled 심볼릭 링크
-ln -sf /etc/nginx/sites-available/panorama_drawing /etc/nginx/sites-enabled/panorama_drawing
+# 기본 설정에서 default server 비활성화
+if [ -f /etc/nginx/nginx.conf ]; then
+  # 기본 server 블록이 있으면 주석처리 대신 conf.d만 사용하도록 설정
+  # Amazon Linux nginx.conf는 기본적으로 conf.d/*.conf를 include함
+  :
+fi
 
-# 기본 사이트 비활성화
-rm -f /etc/nginx/sites-enabled/default
-
-# Nginx 설정 검증 및 적용
+# Nginx 시작 및 활성화
+systemctl enable nginx 2>/dev/null || true
 nginx -t 2>&1
-systemctl reload nginx
+systemctl restart nginx
 
 log_info "Nginx 설정 완료"
 
@@ -166,19 +177,25 @@ else
   fi
 fi
 
-# certbot 자동 갱신 활성화
-systemctl enable certbot.timer 2>/dev/null || true
+# certbot 자동 갱신 타이머 활성화
+systemctl enable certbot-renew.timer 2>/dev/null || \
+  systemctl enable certbot.timer 2>/dev/null || true
 
-# =================== Step 12: 방화벽 (UFW) ===================
+# =================== Step 12: 방화벽 설정 ===================
 log_info "Step 12: 방화벽 설정 중..."
 
-ufw default deny incoming > /dev/null 2>&1
-ufw default allow outgoing > /dev/null 2>&1
-ufw allow ssh > /dev/null 2>&1
-ufw allow 'Nginx Full' > /dev/null 2>&1
-ufw --force enable > /dev/null 2>&1
-
-log_info "방화벽 설정 완료 (SSH, HTTP, HTTPS 허용)"
+# Amazon Linux는 firewalld 또는 iptables 사용 (AWS 보안 그룹이 주 방화벽)
+if command -v firewall-cmd &> /dev/null; then
+  systemctl enable firewalld 2>/dev/null || true
+  systemctl start firewalld 2>/dev/null || true
+  firewall-cmd --permanent --add-service=http > /dev/null 2>&1 || true
+  firewall-cmd --permanent --add-service=https > /dev/null 2>&1 || true
+  firewall-cmd --permanent --add-service=ssh > /dev/null 2>&1 || true
+  firewall-cmd --reload > /dev/null 2>&1 || true
+  log_info "firewalld 방화벽 설정 완료 (SSH, HTTP, HTTPS 허용)"
+else
+  log_info "방화벽: AWS 보안 그룹으로 관리됩니다 (80, 443 포트 인바운드 허용 필요)"
+fi
 
 # =================== 완료 ===================
 echo ""
@@ -193,7 +210,7 @@ echo "  Nginx 상태: sudo systemctl status nginx"
 echo ""
 
 # PM2 상태 출력
-pm2 status
+sudo -u "$APP_USER" pm2 status
 
 echo ""
 log_info "배포가 완료되었습니다!"
