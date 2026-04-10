@@ -44,8 +44,8 @@ function createIncisorGeometry(dim: { w: number; h: number; d: number }): THREE.
 
   const geo = new THREE.LatheGeometry(profile, SEG);
 
-  // Flatten front-to-back for blade shape
-  scaleAxis(geo, 'z', dim.d / dim.w * 0.5);
+  // Flatten along X axis (mesio-distal) so the flat face points outward (Z = labial)
+  scaleAxis(geo, 'x', dim.d / dim.w * 0.5);
 
   // Add slight labial convexity (front bulge)
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
@@ -53,9 +53,9 @@ function createIncisorGeometry(dim: { w: number; h: number; d: number }): THREE.
     const y = pos.getY(i);
     const z = pos.getZ(i);
     const t = (y / dim.h) + 0.5; // normalize 0-1
-    if (z < 0) { // labial (front) side
+    if (z > 0) { // labial (front) side - Z positive = outward
       const bulge = Math.sin(t * Math.PI) * 0.03;
-      pos.setZ(i, z - bulge);
+      pos.setZ(i, z + bulge);
     }
   }
   pos.needsUpdate = true;
@@ -85,7 +85,7 @@ function createCanineGeometry(dim: { w: number; h: number; d: number }): THREE.B
   }
 
   const geo = new THREE.LatheGeometry(profile, SEG);
-  scaleAxis(geo, 'z', dim.d / dim.w * 0.65);
+  scaleAxis(geo, 'x', dim.d / dim.w * 0.65);
 
   return geo;
 }
