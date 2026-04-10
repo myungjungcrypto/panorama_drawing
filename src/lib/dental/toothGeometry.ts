@@ -78,31 +78,32 @@ function createCanineGeometry(dim: { w: number; h: number; d: number }): THREE.B
   return geo;
 }
 
-// 하나의 연속 곡선으로 경부~교합면까지 부드럽게 이어지는 프로파일 생성
+// 덴티폼 스타일: 곧은 원통 몸체 + 부드럽게 둥근 교합면 (알약 캡슐형)
 function createRoundedProfile(
   dim: { w: number; h: number; d: number },
-  maxWidthRatio: number,  // 최대 폭 비율 (0.44 등)
-  cervicalRatio: number,  // 경부 폭 비율
-  bulgeHeight: number,    // 최대 폭 높이 (0~1, 0.4 = 하단 40% 지점)
+  maxWidthRatio: number,
+  cervicalRatio: number,
+  bodyEnd: number,       // 몸체 끝 지점 (0~1, 0.65 = 하단 65%까지 곧은 몸체)
   steps: number
 ): THREE.Vector2[] {
   const profile: THREE.Vector2[] = [];
 
   for (let i = 0; i <= steps; i++) {
-    const t = i / steps; // 0 = 하단(경부), 1 = 상단(교합면 중심)
-
-    // 연속 곡선: 경부에서 시작 → bulgeHeight에서 최대 → 교합면에서 0으로 수렴
-    // 수정된 사인 곡선으로 부드러운 달걀 형태
+    const t = i / steps;
     let r: number;
 
-    if (t <= bulgeHeight) {
-      // 경부 → 최대 폭: 부드러운 증가
-      const nt = t / bulgeHeight;
+    if (t < 0.12) {
+      // 경부: 약간 좁은 시작
+      const nt = t / 0.12;
       r = cervicalRatio + (maxWidthRatio - cervicalRatio) * Math.sin(nt * Math.PI * 0.5);
+    } else if (t < bodyEnd) {
+      // 몸체: 거의 곧은 원통 (아주 미세한 볼록)
+      const bodyT = (t - 0.12) / (bodyEnd - 0.12);
+      r = maxWidthRatio + 0.01 * Math.sin(bodyT * Math.PI);
     } else {
-      // 최대 폭 → 교합면 중심: 부드러운 감소 (코사인 곡선)
-      const nt = (t - bulgeHeight) / (1 - bulgeHeight);
-      r = maxWidthRatio * Math.cos(nt * Math.PI * 0.5);
+      // 교합면 캡: 사분원(quarter-circle) 커브로 부드럽게 닫힘
+      const capT = (t - bodyEnd) / (1 - bodyEnd);
+      r = maxWidthRatio * Math.cos(capT * Math.PI * 0.5);
     }
 
     const y = (t - 0.45) * dim.h;
@@ -113,7 +114,7 @@ function createRoundedProfile(
 }
 
 function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  const profile = createRoundedProfile(dim, 0.44, 0.34, 0.4, 20);
+  const profile = createRoundedProfile(dim, 0.44, 0.36, 0.62, 22);
   const geo = new THREE.LatheGeometry(profile, SEG);
 
   scaleAxis(geo, 'z', dim.d / dim.w * 0.95);
@@ -158,7 +159,7 @@ function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE
 }
 
 function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  const profile = createRoundedProfile(dim, 0.47, 0.36, 0.38, 22);
+  const profile = createRoundedProfile(dim, 0.47, 0.38, 0.60, 24);
   const geo = new THREE.LatheGeometry(profile, SEG);
 
   scaleAxis(geo, 'z', dim.d / dim.w);
