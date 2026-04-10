@@ -135,13 +135,8 @@ log_info "PM2 시스템 시작 설정 완료 (재부팅 후 자동 시작)"
 # =================== Step 10: Nginx 설정 ===================
 log_info "Step 10: Nginx 설정 중..."
 
-# SSL 설정이 이미 있으면 덮어쓰지 않음 (certbot이 수정한 설정 보존)
-if [ -f /etc/nginx/conf.d/panorama_drawing.conf ] && grep -q "ssl_certificate" /etc/nginx/conf.d/panorama_drawing.conf; then
-  log_info "SSL이 설정된 Nginx 설정 파일이 이미 존재합니다 (건너뜀)"
-else
-  # Amazon Linux는 /etc/nginx/conf.d/ 디렉토리 사용
-  cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/conf.d/panorama_drawing.conf
-fi
+# nginx.conf에 SSL 설정이 포함되어 있으므로 항상 최신 설정으로 덮어쓰기
+cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/conf.d/panorama_drawing.conf
 
 # 기본 설정에서 default server 비활성화
 if [ -f /etc/nginx/nginx.conf ]; then
