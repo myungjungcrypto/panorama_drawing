@@ -32,7 +32,7 @@ function ToothLabel({ fdi, showLabels }: { fdi: number; showLabels: boolean }) {
   const isUpper = info.quadrant <= 2;
   const gumY = getGumLineY(isUpper);
   // Upper: labels above gum (higher Y), Lower: labels below gum (lower Y)
-  const labelY = isUpper ? gumY + 0.65 : gumY - 0.65;
+  const labelY = isUpper ? gumY + 0.65 : gumY - 0.85;
 
   return (
     <Html
@@ -42,7 +42,7 @@ function ToothLabel({ fdi, showLabels }: { fdi: number; showLabels: boolean }) {
       style={{ pointerEvents: 'none' }}
     >
       <div className={`text-[10px] font-bold px-1 rounded ${
-        isMissing ? 'text-red-500' : 'text-gray-600'
+        isMissing ? 'text-red-500 bg-red-50/80' : 'text-gray-700 bg-white/80'
       }`}>
         {fdi}
       </div>
