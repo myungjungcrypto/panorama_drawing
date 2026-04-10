@@ -78,74 +78,78 @@ function createCanineGeometry(dim: { w: number; h: number; d: number }): THREE.B
   return geo;
 }
 
-function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // 닫힌 프로파일: 경부 → 동체 → 돔(교합면) → 중심 수렴
+// 하나의 연속 곡선으로 경부~교합면까지 부드럽게 이어지는 프로파일 생성
+function createRoundedProfile(
+  dim: { w: number; h: number; d: number },
+  maxWidthRatio: number,  // 최대 폭 비율 (0.44 등)
+  cervicalRatio: number,  // 경부 폭 비율
+  bulgeHeight: number,    // 최대 폭 높이 (0~1, 0.4 = 하단 40% 지점)
+  steps: number
+): THREE.Vector2[] {
   const profile: THREE.Vector2[] = [];
-  const bodySteps = 10;
-  const domeSteps = 6;
 
-  // 경부~동체
-  for (let i = 0; i <= bodySteps; i++) {
-    const t = i / bodySteps;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps; // 0 = 하단(경부), 1 = 상단(교합면 중심)
+
+    // 연속 곡선: 경부에서 시작 → bulgeHeight에서 최대 → 교합면에서 0으로 수렴
+    // 수정된 사인 곡선으로 부드러운 달걀 형태
     let r: number;
-    if (t < 0.15) {
-      r = dim.w * (0.34 + 0.06 * (t / 0.15));
-    } else if (t < 0.65) {
-      const bodyT = (t - 0.15) / 0.5;
-      r = dim.w * (0.40 + 0.04 * Math.sin(bodyT * Math.PI));
+
+    if (t <= bulgeHeight) {
+      // 경부 → 최대 폭: 부드러운 증가
+      const nt = t / bulgeHeight;
+      r = cervicalRatio + (maxWidthRatio - cervicalRatio) * Math.sin(nt * Math.PI * 0.5);
     } else {
-      // 교합면으로 향하는 완만한 축소
-      const topT = (t - 0.65) / 0.35;
-      r = dim.w * (0.42 - 0.06 * topT);
+      // 최대 폭 → 교합면 중심: 부드러운 감소 (코사인 곡선)
+      const nt = (t - bulgeHeight) / (1 - bulgeHeight);
+      r = maxWidthRatio * Math.cos(nt * Math.PI * 0.5);
     }
+
     const y = (t - 0.45) * dim.h;
-    profile.push(new THREE.Vector2(Math.max(r, 0.02), y));
+    profile.push(new THREE.Vector2(Math.max(dim.w * r, 0.001), y));
   }
 
-  // 돔 (교합면 닫기) — 중심으로 부드럽게 수렴
-  const domeStartR = dim.w * 0.36;
-  const domeStartY = dim.h * 0.55 * 0.5;
-  for (let i = 1; i <= domeSteps; i++) {
-    const t = i / domeSteps;
-    const r = domeStartR * (1 - t * t); // 부드러운 감소
-    const y = domeStartY + t * dim.h * 0.06; // 약간 위로
-    profile.push(new THREE.Vector2(Math.max(r, 0.001), y));
-  }
+  return profile;
+}
 
+function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
+  const profile = createRoundedProfile(dim, 0.44, 0.34, 0.4, 20);
   const geo = new THREE.LatheGeometry(profile, SEG);
+
   scaleAxis(geo, 'z', dim.d / dim.w * 0.95);
   squarifyGeometry(geo, 0.25);
 
   // 교두 2개 + 열구
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-  const cuspBaseY = domeStartY * 0.5;
+  const maxY = dim.h * 0.55;
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
+    const r = Math.sqrt(x * x + z * z);
 
-    if (y > cuspBaseY) {
-      const t = Math.min(1, (y - cuspBaseY) / (domeStartY + dim.h * 0.06 - cuspBaseY));
+    // 상단 40% 영역에서만 교두 적용
+    if (y > maxY * 0.2 && r < dim.w * 0.4) {
+      const t = Math.min(1, (y - maxY * 0.2) / (maxY * 0.8));
 
-      // 협측 교두 (z < 0)와 설측 교두 (z > 0)
-      const buccalCenter = -dim.d * 0.16;
-      const lingualCenter = dim.d * 0.16;
-      const cuspR = dim.w * 0.24;
-
-      const buccalDist = Math.sqrt(x * x + (z - buccalCenter) ** 2);
-      const lingualDist = Math.sqrt(x * x + (z - lingualCenter) ** 2);
+      // 협측/설측 교두
+      const buccalDist = Math.sqrt(x * x + (z + dim.d * 0.14) ** 2);
+      const lingualDist = Math.sqrt(x * x + (z - dim.d * 0.14) ** 2);
+      const cuspR = dim.w * 0.26;
 
       const buccalInf = Math.max(0, 1 - buccalDist / cuspR);
       const lingualInf = Math.max(0, 1 - lingualDist / cuspR);
 
-      const buccalRise = buccalInf * buccalInf * 0.09 * t;
-      const lingualRise = lingualInf * lingualInf * 0.07 * t;
+      const rise = Math.max(
+        buccalInf * buccalInf * 0.10 * t,
+        lingualInf * lingualInf * 0.08 * t
+      );
 
-      // 중심 열구
-      const fissure = Math.exp(-(z * z) / 0.005) * 0.035 * t;
+      // 열구
+      const fissure = Math.exp(-(z * z) / 0.005) * 0.03 * t;
 
-      pos.setY(i, y + Math.max(buccalRise, lingualRise) - fissure);
+      pos.setY(i, y + rise - fissure);
     }
   }
   pos.needsUpdate = true;
@@ -154,60 +158,31 @@ function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE
 }
 
 function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.BufferGeometry {
-  // 닫힌 프로파일: 경부 → 동체 → 돔(교합면) → 중심 수렴
-  const profile: THREE.Vector2[] = [];
-  const bodySteps = 10;
-  const domeSteps = 8;
-
-  // 경부~동체
-  for (let i = 0; i <= bodySteps; i++) {
-    const t = i / bodySteps;
-    let r: number;
-    if (t < 0.12) {
-      r = dim.w * (0.36 + 0.08 * (t / 0.12));
-    } else if (t < 0.65) {
-      const bodyT = (t - 0.12) / 0.53;
-      r = dim.w * (0.44 + 0.03 * Math.sin(bodyT * Math.PI));
-    } else {
-      const topT = (t - 0.65) / 0.35;
-      r = dim.w * (0.46 - 0.04 * topT);
-    }
-    const y = (t - 0.45) * dim.h;
-    profile.push(new THREE.Vector2(Math.max(r, 0.02), y));
-  }
-
-  // 돔 (교합면 닫기)
-  const domeStartR = dim.w * 0.42;
-  const domeStartY = dim.h * 0.55 * 0.5;
-  for (let i = 1; i <= domeSteps; i++) {
-    const t = i / domeSteps;
-    const r = domeStartR * (1 - t * t);
-    const y = domeStartY + t * dim.h * 0.04;
-    profile.push(new THREE.Vector2(Math.max(r, 0.001), y));
-  }
-
+  const profile = createRoundedProfile(dim, 0.47, 0.36, 0.38, 22);
   const geo = new THREE.LatheGeometry(profile, SEG);
+
   scaleAxis(geo, 'z', dim.d / dim.w);
   squarifyGeometry(geo, 0.35);
 
   // 교두 4개 + 십자형 열구 + 중심와
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-  const cuspBaseY = domeStartY * 0.4;
+  const maxY = dim.h * 0.55;
 
   const cusps = [
-    { cx:  dim.w * 0.15, cz: -dim.d * 0.17, h: 0.11, r: dim.w * 0.22 }, // 근심협측
-    { cx: -dim.w * 0.15, cz: -dim.d * 0.17, h: 0.10, r: dim.w * 0.21 }, // 원심협측
-    { cx:  dim.w * 0.14, cz:  dim.d * 0.17, h: 0.09, r: dim.w * 0.21 }, // 근심설측
-    { cx: -dim.w * 0.14, cz:  dim.d * 0.17, h: 0.085, r: dim.w * 0.20 }, // 원심설측
+    { cx:  dim.w * 0.15, cz: -dim.d * 0.16, h: 0.12, r: dim.w * 0.24 },
+    { cx: -dim.w * 0.15, cz: -dim.d * 0.16, h: 0.11, r: dim.w * 0.23 },
+    { cx:  dim.w * 0.14, cz:  dim.d * 0.16, h: 0.10, r: dim.w * 0.23 },
+    { cx: -dim.w * 0.14, cz:  dim.d * 0.16, h: 0.09, r: dim.w * 0.22 },
   ];
 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = pos.getY(i);
     const z = pos.getZ(i);
+    const r = Math.sqrt(x * x + z * z);
 
-    if (y > cuspBaseY) {
-      const t = Math.min(1, (y - cuspBaseY) / (domeStartY + dim.h * 0.04 - cuspBaseY));
+    if (y > maxY * 0.1 && r < dim.w * 0.45) {
+      const t = Math.min(1, (y - maxY * 0.1) / (maxY * 0.9));
 
       // 교두 기여
       let totalRise = 0;
@@ -216,18 +191,16 @@ function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.Bu
         const dz = z - cusp.cz;
         const dist = Math.sqrt(dx * dx + dz * dz);
         const influence = Math.max(0, 1 - dist / cusp.r);
-        const rise = influence * influence * cusp.h * t;
-        totalRise = Math.max(totalRise, rise);
+        totalRise = Math.max(totalRise, influence * influence * cusp.h * t);
       }
 
       // 십자형 열구
-      const blGroove = Math.exp(-(x * x) / 0.003) * 0.04 * t;
-      const mdGroove = Math.exp(-(z * z) / 0.006) * 0.03 * t;
+      const blGroove = Math.exp(-(x * x) / 0.003) * 0.035 * t;
+      const mdGroove = Math.exp(-(z * z) / 0.006) * 0.025 * t;
       const grooveDepth = Math.max(blGroove, mdGroove);
 
       // 중심와
-      const fossaDist = x * x + z * z;
-      const fossa = Math.exp(-fossaDist / 0.006) * 0.025 * t;
+      const fossa = Math.exp(-(x * x + z * z) / 0.006) * 0.02 * t;
 
       pos.setY(i, y + totalRise - grooveDepth - fossa);
     }
@@ -237,7 +210,6 @@ function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.Bu
   return geo;
 }
 
-// 원형 → 직사각형 변형
 function squarifyGeometry(geo: THREE.BufferGeometry, amount: number) {
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
