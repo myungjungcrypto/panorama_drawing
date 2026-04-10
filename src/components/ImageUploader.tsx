@@ -51,32 +51,6 @@ export default function ImageUploader() {
     [handleFile]
   );
 
-  // Cloud analysis (Claude API)
-  const analyzeCloud = useCallback(async () => {
-    if (!preview) return;
-    setAnalyzing(true);
-    setAnalysisError(null);
-    setStatusMsg('Claude API로 분석 중... (10~20초)');
-
-    try {
-      const res = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageData: preview }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '분석 실패');
-      applyResults(data.result);
-      setAnalyzed(true);
-      setStatusMsg('');
-      setDetections([]);
-    } catch (err) {
-      setAnalysisError(err instanceof Error ? err.message : '분석 중 오류 발생');
-    } finally {
-      setAnalyzing(false);
-    }
-  }, [preview]);
-
   // Local analysis (ONNX model in browser)
   const analyzeLocal = useCallback(async () => {
     if (!preview || !imgRef.current) return;
@@ -198,39 +172,21 @@ export default function ImageUploader() {
             </div>
           )}
 
-          {/* Analysis buttons */}
-          <div className="mt-3 flex gap-2">
+          {/* Analysis button */}
+          <div className="mt-3">
             <button
               onClick={analyzeLocal}
               disabled={analyzing}
               className={`
-                flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
+                w-full py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
                 ${analyzing
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-emerald-600 text-white hover:bg-emerald-700'
                 }
               `}
             >
-              {analyzing ? '분석 중...' : '로컬 AI 분석'}
+              {analyzing ? '분석 중...' : 'AI 분석'}
             </button>
-            <button
-              onClick={analyzeCloud}
-              disabled={analyzing}
-              className={`
-                flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer
-                ${analyzing
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-                }
-              `}
-            >
-              {analyzing ? '분석 중...' : '클라우드 분석'}
-            </button>
-          </div>
-
-          <div className="mt-1 flex justify-between text-[10px] text-gray-400">
-            <span>ONNX 모델 (개인정보 보호)</span>
-            <span>Claude API (정확도 높음)</span>
           </div>
 
           {analyzing && statusMsg && (
