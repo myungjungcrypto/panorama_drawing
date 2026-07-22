@@ -41,7 +41,8 @@ log_info "Step 1: 시스템 패키지 업데이트 및 설치..."
 
 dnf update -y -q 2>/dev/null || yum update -y -q
 # curl-minimal이 이미 설치된 경우 curl과 충돌하므로 제외
-dnf install -y -q nginx git tar gzip bind-utils 2>/dev/null || yum install -y -q nginx git tar gzip bind-utils
+# gcc-c++/make/python3: better-sqlite3 네이티브 모듈 컴파일용
+dnf install -y -q nginx git tar gzip bind-utils gcc-c++ make python3 2>/dev/null || yum install -y -q nginx git tar gzip bind-utils gcc-c++ make python3
 
 # certbot 설치 (Amazon Linux 2023)
 if ! command -v certbot &> /dev/null; then
