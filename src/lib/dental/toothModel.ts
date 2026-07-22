@@ -94,7 +94,8 @@ export function useRealToothGeometry(fdi: number): THREE.BufferGeometry | null {
     geo.translate(-center.x, -center.y, -center.z);
 
     const info = TOOTH_MAP[fdi];
-    const targetH = info ? TOOTH_DIMENSIONS[info.type].h * 1.6 : 0.5; // 치근 포함이므로 여유
+    // 치관 전용 모델 기준 배율 (치근 포함 모델이면 1.5~1.8로 조정)
+    const targetH = info ? TOOTH_DIMENSIONS[info.type].h * 1.0 : 0.4;
     const scale = size.y > 0 ? targetH / size.y : 1;
     geo.scale(scale, scale, scale);
     geo.computeVertexNormals();
