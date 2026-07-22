@@ -109,7 +109,6 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
     const p = toNorm(e);
     if (!p) return;
     setDrawing({ x: p.x, y: p.y, cx: p.x, cy: p.y });
-    setSelectedKey(null);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -126,22 +125,44 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
     const w = Math.abs(drawing.cx - drawing.x);
     const h = Math.abs(drawing.cy - drawing.y);
     setDrawing(null);
-    // 너무 작으면 클릭으로 간주 (박스 선택)
-    if (w < 0.01 || h < 0.01) return;
+
+    // 드래그가 거의 없으면 클릭으로 간주 → 해당 지점의 박스 선택
+    // (기존 박스 위에서도 드래그로 새 박스를 그릴 수 있도록, 박스는 이벤트를 가로채지 않음)
+    if (w < 0.01 || h < 0.01) {
+      const px = drawing.x;
+      const py = drawing.y;
+      // 클릭 지점을 포함하는 박스 중 가장 작은 것(가장 구체적인 것) 선택
+      const hit = boxes
+        .filter((b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)
+        .sort((a, b) => a.w * a.h - b.w * b.h)[0];
+      if (hit) {
+        // 같은 박스를 다시 클릭하면 그 아래(다음으로 작은) 박스로 순환 선택
+        if (hit.key === selectedKey) {
+          const candidates = boxes
+            .filter((b) => px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)
+            .sort((a, b) => a.w * a.h - b.w * b.h);
+          const idx = candidates.findIndex((b) => b.key === selectedKey);
+          const next = candidates[(idx + 1) % candidates.length];
+          applySelection(next);
+        } else {
+          applySelection(hit);
+        }
+      } else {
+        setSelectedKey(null);
+      }
+      return;
+    }
+
     const newBox: Box = { key: nextKey(), type: mode, label: currentLabel, x, y, w, h, source: 'manual' };
     setBoxes((prev) => [...prev, newBox]);
     setSelectedKey(newBox.key);
     setDirty(true);
   };
 
-  const selectBox = (e: React.MouseEvent, key: string) => {
-    e.stopPropagation();
-    setSelectedKey(key);
-    const box = boxes.find((b) => b.key === key);
-    if (box) {
-      setMode(box.type);
-      setCurrentLabel(box.label);
-    }
+  const applySelection = (box: Box) => {
+    setSelectedKey(box.key);
+    setMode(box.type);
+    setCurrentLabel(box.label);
   };
 
   const deleteSelected = useCallback(() => {
@@ -252,7 +273,7 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
             {pano.caseTitle} — {pano.phase === 'before' ? '치료 전' : '치료 후'} 어노테이션
           </h1>
           <p className="text-xs text-gray-400">
-            드래그: 박스 그리기 · 클릭: 선택 · Delete: 삭제 · 치식 {toothCount} / 상태 {condCount}
+            드래그: 박스 그리기 (기존 박스 위에서도 가능) · 클릭: 선택 (겹친 박스는 재클릭으로 순환) · Delete: 삭제 · 치식 {toothCount} / 상태 {condCount}
             {dirty && <span className="text-orange-500 ml-2">● 저장 안 됨</span>}
           </p>
         </div>
@@ -311,7 +332,7 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
                 const isSel = b.key === selectedKey;
                 const color = boxColor(b);
                 return (
-                  <g key={b.key} onMouseDown={(e) => selectBox(e, b.key)} className="cursor-pointer">
+                  <g key={b.key} style={{ pointerEvents: 'none' }}>
                     <rect
                       x={b.x} y={b.y} width={b.w} height={b.h}
                       fill={isSel ? `${color}33` : 'transparent'}
