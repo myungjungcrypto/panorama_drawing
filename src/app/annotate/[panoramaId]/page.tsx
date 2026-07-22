@@ -73,11 +73,23 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
   const [statusMsg, setStatusMsg] = useState('');
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1); // 1 = 화면 폭에 맞춤
+  const [zoom, setZoom] = useState(1); // 1 = 화면 안에 전체 맞춤
+  const [viewportSize, setViewportSize] = useState<{ w: number; h: number } | null>(null);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
+
+  // 뷰포트 크기 추적 (맞춤 크기 계산용)
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const update = () => setViewportSize({ w: el.clientWidth - 32, h: el.clientHeight - 32 });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pano]);
 
   const zoomIn = useCallback(() => setZoom((z) => Math.min(8, z * 1.25)), []);
   const zoomOut = useCallback(() => setZoom((z) => Math.max(1, z / 1.25)), []);
@@ -353,7 +365,17 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
         <div ref={viewportRef} className="flex-1 overflow-auto p-4">
           <div
             className="relative select-none"
-            style={{ width: `${zoom * 100}%`, margin: zoom === 1 ? '0 auto' : undefined }}
+            style={(() => {
+              // 맞춤 크기: 가로/세로 모두 뷰포트 안에 들어오는 폭 계산
+              const aspect = pano.width / pano.height;
+              const fitW = viewportSize
+                ? Math.max(200, Math.min(viewportSize.w, viewportSize.h * aspect))
+                : 800;
+              return {
+                width: `${Math.round(fitW * zoom)}px`,
+                margin: zoom === 1 ? '0 auto' : undefined,
+              };
+            })()}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
