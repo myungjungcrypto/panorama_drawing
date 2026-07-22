@@ -7,8 +7,11 @@ import { createToothGeometry } from '@/lib/dental/toothGeometry';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
+import { useCalibration, getCalib } from '@/hooks/useCalibration';
 import { useRealToothModel, useRealToothGeometry } from '@/lib/dental/toothModel';
 import { ToothStatus, TreatmentStatus } from '@/types/dental';
+
+const DEG = Math.PI / 180;
 
 interface ToothMeshProps {
   fdi: number;
@@ -150,6 +153,8 @@ function ToothMeshInner({ fdi, geometry }: { fdi: number; geometry: THREE.Buffer
   const setHoveredTooth = useTeethState((s) => s.setHoveredTooth);
   const treatmentStatus = useTeethState((s) => s.treatmentPlan[fdi]);
   const viewMode = useTeethState((s) => s.viewMode);
+  const calibMap = useCalibration((s) => s.calib);
+  const calib = getCalib(calibMap, fdi);
 
   if (!pos || !info) return null;
 
@@ -184,35 +189,41 @@ function ToothMeshInner({ fdi, geometry }: { fdi: number; geometry: THREE.Buffer
       position={[pos.x, pos.y, pos.z]}
       rotation={[0, pos.rotationY, rotationZ]}
     >
-      {/* 현재 상태 메시 */}
-      <mesh
-        ref={meshRef}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onPointerOver={(e) => { e.stopPropagation(); setHoveredTooth(fdi); }}
-        onPointerOut={() => setHoveredTooth(null)}
-        geometry={geometry}
+      {/* 보정(캘리브레이션) 적용 그룹 */}
+      <group
+        rotation={[calib.rx * DEG, calib.ry * DEG, calib.rz * DEG]}
+        scale={calib.s}
       >
-        <meshPhysicalMaterial
-          key={`${fdi}-${displayStatus}`}
-          color={appearance.color}
-          emissive={appearance.emissive}
-          transparent={appearance.transparent}
-          opacity={appearance.opacity}
-          wireframe={appearance.wireframe}
-          roughness={appearance.roughness}
-          metalness={appearance.metalness}
-          side={appearance.side}
-          clearcoat={displayStatus === 'present' || displayStatus === 'crown' ? 0.3 : 0}
-          clearcoatRoughness={0.2}
-          envMapIntensity={appearance.envMapIntensity}
-        />
-      </mesh>
+        {/* 현재 상태 메시 */}
+        <mesh
+          ref={meshRef}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onPointerOver={(e) => { e.stopPropagation(); setHoveredTooth(fdi); }}
+          onPointerOut={() => setHoveredTooth(null)}
+          geometry={geometry}
+        >
+          <meshPhysicalMaterial
+            key={`${fdi}-${displayStatus}`}
+            color={appearance.color}
+            emissive={appearance.emissive}
+            transparent={appearance.transparent}
+            opacity={appearance.opacity}
+            wireframe={appearance.wireframe}
+            roughness={appearance.roughness}
+            metalness={appearance.metalness}
+            side={appearance.side}
+            clearcoat={displayStatus === 'present' || displayStatus === 'crown' ? 0.3 : 0}
+            clearcoatRoughness={0.2}
+            envMapIntensity={appearance.envMapIntensity}
+          />
+        </mesh>
 
-      {/* 치료 계획 오버레이 (비교 모드) */}
-      {showPlannedOverlay && (
-        <PlannedOverlayMesh geometry={geometry} targetStatus={treatmentStatus} />
-      )}
+        {/* 치료 계획 오버레이 (비교 모드) */}
+        {showPlannedOverlay && (
+          <PlannedOverlayMesh geometry={geometry} targetStatus={treatmentStatus} />
+        )}
+      </group>
     </group>
   );
 }

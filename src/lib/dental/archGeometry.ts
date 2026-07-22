@@ -13,16 +13,34 @@ interface ArchConfig {
 const UPPER_ARCH: ArchConfig = { width: 3.0, depth: 2.6, gumY: 0.8 };
 const LOWER_ARCH: ArchConfig = { width: 2.7, depth: 2.3, gumY: -0.8 };
 
-export const TOOTH_WIDTHS: Record<number, number> = {
-  1: 0.52,
-  2: 0.42,
-  3: 0.48,
-  4: 0.45,
-  5: 0.45,
-  6: 0.60,
-  7: 0.58,
-  8: 0.50,
+// 실제 해부학적 평균 근원심 폭 비율 기반 (Wheeler 치아형태학, 악궁 절반폭 4.0 기준 정규화)
+export const UPPER_TOOTH_WIDTHS: Record<number, number> = {
+  1: 0.53, // 중절치 8.5mm
+  2: 0.41, // 측절치 6.5mm
+  3: 0.47, // 견치 7.5mm
+  4: 0.44, // 제1소구치 7.0mm
+  5: 0.43, // 제2소구치 6.8mm
+  6: 0.63, // 제1대구치 10.0mm
+  7: 0.56, // 제2대구치 9.0mm
+  8: 0.53, // 제3대구치 8.5mm
 };
+
+export const LOWER_TOOTH_WIDTHS: Record<number, number> = {
+  1: 0.32, // 중절치 5.0mm
+  2: 0.35, // 측절치 5.5mm
+  3: 0.44, // 견치 7.0mm
+  4: 0.44, // 제1소구치 7.0mm
+  5: 0.44, // 제2소구치 7.0mm
+  6: 0.70, // 제1대구치 11.0mm
+  7: 0.67, // 제2대구치 10.5mm
+  8: 0.64, // 제3대구치 10.0mm
+};
+
+export function getToothWidth(fdi: number): number {
+  const quadrant = Math.floor(fdi / 10);
+  const pos = fdi % 10;
+  return quadrant <= 2 ? UPPER_TOOTH_WIDTHS[pos] : LOWER_TOOTH_WIDTHS[pos];
+}
 
 // How far each tooth crown extends beyond the gum ridge
 // This defines the Curve of Spee: anterior teeth protrude more, posterior less
@@ -56,12 +74,13 @@ function computeToothPositions(
   isUpper: boolean
 ): Map<number, Tooth3DPosition> {
   const positions = new Map<number, Tooth3DPosition>();
-  const totalHalfWidth = Object.values(TOOTH_WIDTHS).reduce((a, b) => a + b, 0);
+  const widths = isUpper ? UPPER_TOOTH_WIDTHS : LOWER_TOOTH_WIDTHS;
+  const totalHalfWidth = Object.values(widths).reduce((a, b) => a + b, 0);
 
   for (const side of ['right', 'left'] as const) {
     let cumulative = 0;
     for (let pos = 1; pos <= 8; pos++) {
-      const w = TOOTH_WIDTHS[pos];
+      const w = widths[pos];
       cumulative += w / 2;
       const tNorm = cumulative / totalHalfWidth;
       const t = tNorm * 0.95;

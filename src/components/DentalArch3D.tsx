@@ -9,6 +9,7 @@ import GumMesh from './GumMesh';
 import { ALL_TEETH, TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS, getGumLineY } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
+import { useCalibration, getCalib } from '@/hooks/useCalibration';
 import { ViewMode } from '@/types/dental';
 
 type ViewPreset = 'front' | 'top' | 'right' | 'left';
@@ -111,6 +112,109 @@ function Scene({ archFilter, showLabels }: { archFilter: ArchFilter; showLabels:
   );
 }
 
+// 치아 보정(회전/크기) 패널
+function CalibrationPanel() {
+  const selectedTooth = useTeethState((s) => s.selectedTooth);
+  const calibMap = useCalibration((s) => s.calib);
+  const setTooth = useCalibration((s) => s.setTooth);
+  const applyToScope = useCalibration((s) => s.applyToScope);
+  const resetTooth = useCalibration((s) => s.resetTooth);
+  const resetAllCalib = useCalibration((s) => s.resetAll);
+  const save = useCalibration((s) => s.save);
+  const [msg, setMsg] = useState('');
+
+  if (!selectedTooth) {
+    return (
+      <div className="absolute top-2 left-2 z-10 bg-white/95 rounded-lg shadow-lg border border-gray-200 p-3 w-56">
+        <p className="text-xs font-semibold text-gray-700 mb-1">치아 보정</p>
+        <p className="text-[11px] text-gray-400">보정할 치아를 클릭하세요.</p>
+      </div>
+    );
+  }
+
+  const c = getCalib(calibMap, selectedTooth);
+
+  const slider = (label: string, key: 'rx' | 'ry' | 'rz', min: number, max: number, step: number) => (
+    <div className="mb-1.5">
+      <div className="flex justify-between text-[10px] text-gray-500">
+        <span>{label}</span>
+        <span>{c[key]}°</span>
+      </div>
+      <input
+        type="range"
+        min={min} max={max} step={step}
+        value={c[key]}
+        onChange={(e) => setTooth(selectedTooth, { [key]: parseFloat(e.target.value) })}
+        className="w-full h-1.5"
+      />
+    </div>
+  );
+
+  const doSave = async () => {
+    try {
+      setMsg(await save());
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : '저장 실패');
+    }
+    setTimeout(() => setMsg(''), 3000);
+  };
+
+  return (
+    <div className="absolute top-2 left-2 z-10 bg-white/95 rounded-lg shadow-lg border border-gray-200 p-3 w-56">
+      <p className="text-xs font-semibold text-gray-700 mb-2">치아 보정 — #{selectedTooth}</p>
+
+      {slider('회전 X (앞뒤 기울기)', 'rx', -180, 180, 1)}
+      {slider('회전 Y (좌우 돌리기)', 'ry', -180, 180, 1)}
+      {slider('회전 Z (좌우 기울기)', 'rz', -180, 180, 1)}
+
+      <div className="mb-2">
+        <div className="flex justify-between text-[10px] text-gray-500">
+          <span>크기</span>
+          <span>{c.s.toFixed(2)}x</span>
+        </div>
+        <input
+          type="range"
+          min={0.5} max={2} step={0.02}
+          value={c.s}
+          onChange={(e) => setTooth(selectedTooth, { s: parseFloat(e.target.value) })}
+          className="w-full h-1.5"
+        />
+      </div>
+
+      <div className="grid grid-cols-3 gap-1 mb-1.5">
+        <button onClick={() => applyToScope(selectedTooth, 'all')}
+          className="py-1 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded text-[10px] cursor-pointer hover:bg-indigo-100">
+          전체 적용
+        </button>
+        <button onClick={() => applyToScope(selectedTooth, 'upper')}
+          className="py-1 bg-gray-50 text-gray-600 border border-gray-200 rounded text-[10px] cursor-pointer hover:bg-gray-100">
+          상악 적용
+        </button>
+        <button onClick={() => applyToScope(selectedTooth, 'lower')}
+          className="py-1 bg-gray-50 text-gray-600 border border-gray-200 rounded text-[10px] cursor-pointer hover:bg-gray-100">
+          하악 적용
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-1">
+        <button onClick={() => resetTooth(selectedTooth)}
+          className="py-1 bg-gray-50 text-gray-500 border border-gray-200 rounded text-[10px] cursor-pointer hover:bg-gray-100">
+          이 치아 초기화
+        </button>
+        <button onClick={() => { if (confirm('모든 보정값을 초기화할까요?')) resetAllCalib(); }}
+          className="py-1 bg-red-50 text-red-500 border border-red-200 rounded text-[10px] cursor-pointer hover:bg-red-100">
+          전체 초기화
+        </button>
+        <button onClick={doSave}
+          className="py-1 bg-emerald-600 text-white rounded text-[10px] font-semibold cursor-pointer hover:bg-emerald-700">
+          저장
+        </button>
+      </div>
+
+      {msg && <p className="mt-1.5 text-[10px] text-emerald-600">{msg}</p>}
+    </div>
+  );
+}
+
 export default function DentalArch3D() {
   const [viewPreset, setViewPreset] = useState<ViewPreset>('front');
   const [archFilter, setArchFilter] = useState<ArchFilter>('all');
@@ -120,6 +224,11 @@ export default function DentalArch3D() {
   const viewMode = useTeethState((s) => s.viewMode);
   const setViewMode = useTeethState((s) => s.setViewMode);
   const treatmentPlan = useTeethState((s) => s.treatmentPlan);
+  const editMode = useCalibration((s) => s.editMode);
+  const setEditMode = useCalibration((s) => s.setEditMode);
+  const loadCalibration = useCalibration((s) => s.load);
+
+  useEffect(() => { loadCalibration(); }, [loadCalibration]);
 
   const missingCount = Object.values(teeth).filter((s) => s === 'missing').length;
   const presentCount = 32 - missingCount;
@@ -206,11 +315,22 @@ export default function DentalArch3D() {
           >
             캡처
           </button>
+          <button
+            onClick={() => setEditMode(!editMode)}
+            className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
+              ${editMode
+                ? 'bg-orange-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+              }`}
+          >
+            조정
+          </button>
         </div>
       </div>
 
       {/* 3D Canvas */}
-      <div className="flex-1 min-h-[400px]">
+      <div className="flex-1 min-h-[400px] relative">
+        {editMode && <CalibrationPanel />}
         <Canvas
           ref={canvasRef}
           gl={{ preserveDrawingBuffer: true }}
