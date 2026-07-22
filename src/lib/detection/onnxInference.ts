@@ -101,6 +101,7 @@ export async function detectTeeth(
     const results = await numberingSession.run({ [inputName]: tensor });
     const output = results[numberingSession.outputNames[0]];
     toothDetections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, numberingClassNames);
+    toothDetections = normalizeToothDetections(toothDetections);
     console.log(`[치아번호] ${toothDetections.length}개 감지:`,
       toothDetections.map(d => `#${d.className}(${(d.confidence * 100).toFixed(0)}%)`)
     );
@@ -241,6 +242,55 @@ function iou(a: Detection['bbox'], b: Detection['bbox']): number {
   const areaB = b.w * b.h;
   const union = areaA + areaB - intersection;
   return union > 0 ? intersection / union : 0;
+}
+
+/**
+ * 치식 감지 결과 해부학적 보정
+ * 1) 좌우 분면 보정: 학습 시 좌우반전 증강으로 모델이 분면을 혼동하는 문제를
+ *    박스의 실제 위치(정중선 기준)로 교정. 화면 왼쪽 = 환자 우측 = 1/4분면.
+ * 2) 중복 제거: 같은 치아에 서로 다른 번호가 겹쳐 예측된 경우 신뢰도 높은 것만 유지.
+ */
+function normalizeToothDetections(dets: Detection[]): Detection[] {
+  if (dets.length === 0) return dets;
+
+  // 정중선 추정: 치아 박스 중심 x의 중앙값
+  const centers = dets.map((d) => d.bbox.x + d.bbox.w / 2).sort((a, b) => a - b);
+  const midline = centers[Math.floor(centers.length / 2)];
+
+  // 1) 좌우 분면 보정 (정중선 근처는 오차 가능성이 있어 건드리지 않음)
+  const MARGIN = 0.02;
+  const corrected = dets.map((d) => {
+    const fdi = parseInt(d.className);
+    if (isNaN(fdi) || fdi < 11 || fdi > 48) return d;
+    const q = Math.floor(fdi / 10);
+    const pos = fdi % 10;
+    const cx = d.bbox.x + d.bbox.w / 2;
+    if (Math.abs(cx - midline) < MARGIN) return d;
+
+    const isLeftSide = cx < midline; // 화면 왼쪽 = 환자 우측
+    let newQ = q;
+    if (q === 1 || q === 2) newQ = isLeftSide ? 1 : 2;
+    else if (q === 3 || q === 4) newQ = isLeftSide ? 4 : 3;
+
+    if (newQ !== q) {
+      console.log(`[보정] #${fdi} → #${newQ * 10 + pos} (좌우 분면 교정)`);
+      return { ...d, className: String(newQ * 10 + pos) };
+    }
+    return d;
+  });
+
+  // 2) 클래스 무관 중복 제거: 겹치는 치아 박스는 신뢰도 높은 것만
+  const sorted = [...corrected].sort((a, b) => b.confidence - a.confidence);
+  const kept: Detection[] = [];
+  for (const det of sorted) {
+    if (kept.some((k) => iou(det.bbox, k.bbox) > 0.55)) {
+      console.log(`[중복제거] #${det.className} (${(det.confidence * 100).toFixed(0)}%)`);
+      continue;
+    }
+    kept.push(det);
+  }
+
+  return kept;
 }
 
 function bboxOverlap(a: Detection['bbox'], b: Detection['bbox']): number {

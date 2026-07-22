@@ -123,6 +123,12 @@ def train_model(
         patience=15,
         save=True,
         plots=True,
+        # 치식(FDI)은 좌우 위치가 라벨을 결정하므로 위치 정보를 파괴하는 증강 금지
+        fliplr=0.0,   # 좌우 반전 시 1↔2, 3↔4분면이 뒤바뀌어 라벨 오염
+        flipud=0.0,
+        mosaic=0.0,   # 모자이크는 치아의 전역 위치 맥락을 파괴
+        degrees=5.0,  # 소폭 회전만 허용
+        translate=0.05,
     )
 
     best_path = NUMBERING_DIR / "runs" / "tooth_numbering" / "weights" / "best.pt"
