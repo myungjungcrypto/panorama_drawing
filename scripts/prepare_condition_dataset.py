@@ -130,7 +130,13 @@ def find_coco_jsons(root: Path):
                 continue
             with open(p) as f:
                 data = json.load(f)
-            if isinstance(data, dict) and "images" in data and "annotations" in data and "categories" in data:
+            if (
+                isinstance(data, dict)
+                and "images" in data
+                and "annotations" in data
+                and ("categories" in data or "categories_3" in data)
+            ):
+                # DENTEX: 진단 라벨(categories_3)이 있는 JSON을 우선, 분면/치식 전용 JSON은 뒤로
                 jsons.append(p)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             continue
@@ -170,11 +176,15 @@ def convert_coco(json_path: Path, img_index, out_images: Path, out_labels: Path,
         if not bbox or len(bbox) != 4:
             continue
         x, y, bw, bh = bbox
-        cx = (x + bw / 2) / w
-        cy = (y + bh / 2) / h
-        nw, nh = bw / w, bh / h
-        if nw <= 0 or nh <= 0:
+        # 좌표 클램핑 (일부 데이터셋에 범위 초과 좌표 존재)
+        x1 = max(0.0, min(1.0, x / w))
+        y1 = max(0.0, min(1.0, y / h))
+        x2 = max(0.0, min(1.0, (x + bw) / w))
+        y2 = max(0.0, min(1.0, (y + bh) / h))
+        nw, nh = x2 - x1, y2 - y1
+        if nw <= 0.001 or nh <= 0.001:
             continue
+        cx, cy = x1 + nw / 2, y1 + nh / 2
         line = f"{cls_idx} {cx:.6f} {cy:.6f} {nw:.6f} {nh:.6f}"
         labels_per_image.setdefault(img["id"], []).append(line)
 
@@ -325,16 +335,22 @@ def main():
         img_dir.mkdir(parents=True)
         lbl_dir.mkdir(parents=True)
         for lbl in labels:
+            # 이미지 먼저 확인 — 없으면 라벨도 버림 (고아 라벨 방지)
+            img_src = None
+            for ext in IMG_EXTS:
+                cand = staging_images / (lbl.stem + ext)
+                if cand.exists():
+                    img_src = cand
+                    break
+            if not img_src:
+                print(f"경고: 이미지 없는 라벨 제외 — {lbl.name}")
+                continue
             # 라벨 통계
             for line in lbl.read_text().strip().split("\n"):
                 idx = int(line.split()[0])
                 stats[CLASSES[idx]] += 1
             shutil.move(str(lbl), lbl_dir / lbl.name)
-            for ext in IMG_EXTS:
-                img = staging_images / (lbl.stem + ext)
-                if img.exists():
-                    shutil.move(str(img), img_dir / img.name)
-                    break
+            shutil.move(str(img_src), img_dir / img_src.name)
 
     shutil.rmtree(out_root / "_staging")
 
