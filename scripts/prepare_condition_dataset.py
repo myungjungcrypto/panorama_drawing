@@ -115,17 +115,23 @@ def find_images_index(root: Path):
 # ===== COCO 형식 처리 =====
 
 def find_coco_jsons(root: Path):
-    """images+annotations+categories 구조를 가진 JSON 탐색"""
+    """COCO 구조(images/annotations/categories)를 가진 JSON 탐색.
+    'annotations' 키는 파일 뒤쪽에 나올 수 있으므로 실제 로드로 검증."""
     jsons = []
     for p in root.rglob("*.json"):
-        if p.stat().st_size > 200 * 1024 * 1024:
+        if p.stat().st_size > 500 * 1024 * 1024:
             continue
         try:
             with open(p) as f:
-                head = f.read(2000)
-            if '"images"' in head and '"annotations"' in head:
+                head = f.read(4000)
+            # COCO 후보: images 키가 앞부분에 존재
+            if '"images"' not in head:
+                continue
+            with open(p) as f:
+                data = json.load(f)
+            if isinstance(data, dict) and "images" in data and "annotations" in data and "categories" in data:
                 jsons.append(p)
-        except (OSError, UnicodeDecodeError):
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             continue
     return jsons
 
