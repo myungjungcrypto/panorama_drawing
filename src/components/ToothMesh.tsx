@@ -7,6 +7,7 @@ import { createToothGeometry } from '@/lib/dental/toothGeometry';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS } from '@/lib/dental/archGeometry';
 import { useTeethState } from '@/hooks/useTeethState';
+import { useRealToothModel, useRealToothGeometry } from '@/lib/dental/toothModel';
 import { ToothStatus, TreatmentStatus } from '@/types/dental';
 
 interface ToothMeshProps {
@@ -111,7 +112,33 @@ function PlannedOverlayMesh({ geometry, targetStatus }: { geometry: THREE.Buffer
   );
 }
 
+// GLB 실물 모델이 있으면 사용, 없으면 절차적 지오메트리로 폴백
 export default function ToothMesh({ fdi }: ToothMeshProps) {
+  const hasRealModel = useRealToothModel();
+  return hasRealModel ? <RealToothMesh fdi={fdi} /> : <ProceduralToothMesh fdi={fdi} />;
+}
+
+function ProceduralToothMesh({ fdi }: ToothMeshProps) {
+  const info = TOOTH_MAP[fdi];
+  const geometry = useMemo(() => {
+    if (!info) return new THREE.BoxGeometry(0.3, 0.5, 0.3);
+    return createToothGeometry(info.type);
+  }, [info]);
+  return <ToothMeshInner fdi={fdi} geometry={geometry} />;
+}
+
+function RealToothMesh({ fdi }: ToothMeshProps) {
+  const info = TOOTH_MAP[fdi];
+  const realGeo = useRealToothGeometry(fdi);
+  const geometry = useMemo(() => {
+    if (realGeo) return realGeo;
+    if (!info) return new THREE.BoxGeometry(0.3, 0.5, 0.3);
+    return createToothGeometry(info.type);
+  }, [realGeo, info]);
+  return <ToothMeshInner fdi={fdi} geometry={geometry} />;
+}
+
+function ToothMeshInner({ fdi, geometry }: { fdi: number; geometry: THREE.BufferGeometry }) {
   const meshRef = useRef<THREE.Mesh>(null);
   const info = TOOTH_MAP[fdi];
   const pos = TOOTH_3D_POSITIONS.get(fdi);
@@ -123,11 +150,6 @@ export default function ToothMesh({ fdi }: ToothMeshProps) {
   const setHoveredTooth = useTeethState((s) => s.setHoveredTooth);
   const treatmentStatus = useTeethState((s) => s.treatmentPlan[fdi]);
   const viewMode = useTeethState((s) => s.viewMode);
-
-  const geometry = useMemo(() => {
-    if (!info) return new THREE.BoxGeometry(0.3, 0.5, 0.3);
-    return createToothGeometry(info.type);
-  }, [info]);
 
   if (!pos || !info) return null;
 

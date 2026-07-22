@@ -3,7 +3,7 @@ import { ToothType } from '@/types/dental';
 
 const SEG = 28;
 
-const TOOTH_DIMENSIONS: Record<ToothType, { w: number; h: number; d: number }> = {
+export const TOOTH_DIMENSIONS: Record<ToothType, { w: number; h: number; d: number }> = {
   incisor:  { w: 0.30, h: 0.42, d: 0.14 },
   canine:   { w: 0.28, h: 0.46, d: 0.18 },
   premolar: { w: 0.32, h: 0.30, d: 0.30 },
