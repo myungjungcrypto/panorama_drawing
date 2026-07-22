@@ -3,15 +3,11 @@ import JSZip from 'jszip';
 import { prisma } from '@/lib/db';
 import { requireRole, unauthorized } from '@/lib/auth';
 import { getUploadPath } from '@/lib/storage';
+import { CONDITION_CLASSES } from '@/lib/dental/conditionClasses';
 
 // 치식 클래스: FDI 11~48 (32개, 고정 순서)
 const TOOTH_CLASSES: string[] = [];
 for (let q = 1; q <= 4; q++) for (let p = 1; p <= 8; p++) TOOTH_CLASSES.push(String(q * 10 + p));
-
-// 상태 클래스 (어노테이션 도구와 동일한 순서)
-const CONDITION_CLASSES = [
-  'Crown', 'Implant', 'Missing teeth', 'Filling', 'Root Canal Treatment', 'abutment',
-];
 
 function toYoloLine(classIdx: number, x: number, y: number, w: number, h: number): string {
   const cx = Math.min(1, Math.max(0, x + w / 2));

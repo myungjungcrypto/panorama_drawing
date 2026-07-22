@@ -19,6 +19,12 @@ const CONDITION_TO_STATUS: Record<string, ToothStatus> = {
   'Retained root': 'missing',
   'post - core': 'crown',
   'abutment': 'bridge',
+  'Bridge': 'bridge',
+  // 병리 소견은 치아 존재 여부에 영향 없음 (상태는 present 유지)
+  'Caries': 'present',
+  'Deep Caries': 'present',
+  'Periapical Lesion': 'present',
+  'Impacted Tooth': 'present',
 };
 
 let numberingSession: ort.InferenceSession | null = null;

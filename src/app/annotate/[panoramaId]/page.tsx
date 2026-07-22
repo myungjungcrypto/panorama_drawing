@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, use } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { CONDITION_CLASSES, CONDITION_KO, CONDITION_COLORS } from '@/lib/dental/conditionClasses';
 
 interface Box {
   key: string; // 클라이언트 식별용
@@ -29,29 +30,11 @@ const FDI_ARCHES: { label: string; left: number[]; right: number[] }[] = [
   { label: '하악', left: [48, 47, 46, 45, 44, 43, 42, 41], right: [31, 32, 33, 34, 35, 36, 37, 38] },
 ];
 
-const CONDITION_LABELS = [
-  'Crown', 'Implant', 'Missing teeth', 'Filling', 'Root Canal Treatment', 'abutment',
-];
-
-const CONDITION_KO: Record<string, string> = {
-  'Crown': '크라운',
-  'Implant': '임플란트',
-  'Missing teeth': '상실',
-  'Filling': '충전',
-  'Root Canal Treatment': '신경치료',
-  'abutment': '지대치',
-};
+const CONDITION_LABELS: readonly string[] = CONDITION_CLASSES;
 
 function boxColor(box: Box): string {
   if (box.type === 'tooth') return '#22c55e';
-  switch (box.label) {
-    case 'Crown': return '#eab308';
-    case 'Implant': return '#3b82f6';
-    case 'Missing teeth': return '#ef4444';
-    case 'Filling': return '#8b5cf6';
-    case 'Root Canal Treatment': return '#ec4899';
-    default: return '#94a3b8';
-  }
+  return CONDITION_COLORS[box.label] ?? '#94a3b8';
 }
 
 let keySeq = 0;
