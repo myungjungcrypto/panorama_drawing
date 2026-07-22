@@ -227,8 +227,18 @@ export default function DentalArch3D() {
   const editMode = useCalibration((s) => s.editMode);
   const setEditMode = useCalibration((s) => s.setEditMode);
   const loadCalibration = useCalibration((s) => s.load);
+  const [isAdmin, setIsAdmin] = useState(process.env.NODE_ENV === 'development');
 
   useEffect(() => { loadCalibration(); }, [loadCalibration]);
+
+  // 조정 도구는 관리자에게만 노출 (로컬 개발 환경에서는 항상 노출)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') return;
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setIsAdmin(d.user?.role === 'admin'))
+      .catch(() => {});
+  }, []);
 
   const missingCount = Object.values(teeth).filter((s) => s === 'missing').length;
   const presentCount = 32 - missingCount;
@@ -315,22 +325,24 @@ export default function DentalArch3D() {
           >
             캡처
           </button>
-          <button
-            onClick={() => setEditMode(!editMode)}
-            className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
-              ${editMode
-                ? 'bg-orange-500 text-white'
-                : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-              }`}
-          >
-            조정
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setEditMode(!editMode)}
+              className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
+                ${editMode
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                }`}
+            >
+              조정
+            </button>
+          )}
         </div>
       </div>
 
       {/* 3D Canvas */}
       <div className="flex-1 min-h-[400px] relative">
-        {editMode && <CalibrationPanel />}
+        {editMode && isAdmin && <CalibrationPanel />}
         <Canvas
           ref={canvasRef}
           gl={{ preserveDrawingBuffer: true }}
