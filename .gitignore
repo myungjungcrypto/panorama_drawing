@@ -56,3 +56,11 @@ skills-lock.json
 # 3D 치아 모델 (라이선스 보호 — scp로 서버 반영)
 /public/models/*.glb
 /calibration.json
+
+# 학습 데이터셋 / 결과물 (용량 큼 — git 제외)
+/condition_merged
+/dentex_raw
+/dentex_yolo
+/training
+/merged-tooth-numbering*
+/.venv
