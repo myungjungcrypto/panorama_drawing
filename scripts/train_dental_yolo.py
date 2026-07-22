@@ -102,12 +102,23 @@ def train_model(
 
     print(f"데이터 설정: {data_yaml}")
 
+    # 디바이스 자동 선택: CUDA > Apple Silicon(MPS) > CPU
+    import torch
+    if torch.cuda.is_available():
+        device = 0
+    elif torch.backends.mps.is_available():
+        device = "mps"
+    else:
+        device = "cpu"
+    print(f"학습 디바이스: {device}")
+
     # 학습 실행
     results = model.train(
         data=data_yaml,
         epochs=epochs,
         imgsz=imgsz,
         batch=batch,
+        device=device,
         project=str(TRAINING_DIR / "runs"),
         name="dental_detector",
         exist_ok=True,
