@@ -17,7 +17,7 @@ EMAIL="admin@nanbalchi.com"
 APP_DIR="/home/ec2-user/panorama_drawing"
 REPO_URL="https://github.com/myungjungcrypto/panorama_drawing.git"
 GIT_BRANCH="claude/deploy-ec2-domain-t77SZ"
-NODE_VERSION="20"
+NODE_VERSION="22"
 APP_USER="ec2-user"
 
 # =================== 색상 출력 ===================
