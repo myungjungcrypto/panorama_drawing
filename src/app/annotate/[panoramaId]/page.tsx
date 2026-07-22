@@ -73,9 +73,27 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
   const [statusMsg, setStatusMsg] = useState('');
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1); // 1 = 화면 폭에 맞춤
 
   const svgRef = useRef<SVGSVGElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  const zoomIn = useCallback(() => setZoom((z) => Math.min(8, z * 1.25)), []);
+  const zoomOut = useCallback(() => setZoom((z) => Math.max(1, z / 1.25)), []);
+
+  // Ctrl+휠 줌 (기본 휠은 스크롤 유지)
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      setZoom((z) => Math.min(8, Math.max(1, z * (e.deltaY < 0 ? 1.15 : 1 / 1.15))));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [pano]);
 
   // 데이터 로드
   useEffect(() => {
@@ -281,6 +299,31 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
           <Link href={`/cases/${pano.caseId}`} className="text-sm text-blue-600 hover:underline mr-2">
             ← 케이스
           </Link>
+          <div className="flex items-center gap-1 mr-2 bg-gray-100 rounded-lg px-1 py-0.5">
+            <button
+              onClick={zoomOut}
+              className="px-2 py-1 text-sm text-gray-600 hover:bg-white rounded cursor-pointer"
+              title="축소"
+            >
+              −
+            </button>
+            <span className="text-xs text-gray-500 w-11 text-center">{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={zoomIn}
+              className="px-2 py-1 text-sm text-gray-600 hover:bg-white rounded cursor-pointer"
+              title="확대 (Ctrl+휠)"
+            >
+              +
+            </button>
+            {zoom !== 1 && (
+              <button
+                onClick={() => setZoom(1)}
+                className="px-1.5 py-1 text-[10px] text-gray-500 hover:bg-white rounded cursor-pointer"
+              >
+                맞춤
+              </button>
+            )}
+          </div>
           <button
             onClick={runAI}
             disabled={aiRunning}
@@ -307,14 +350,17 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
 
       <div className="flex-1 flex overflow-hidden">
         {/* 이미지 + 오버레이 */}
-        <div className="flex-1 overflow-auto p-4 flex items-start justify-center">
-          <div className="relative select-none" style={{ maxWidth: '100%' }}>
+        <div ref={viewportRef} className="flex-1 overflow-auto p-4">
+          <div
+            className="relative select-none"
+            style={{ width: `${zoom * 100}%`, margin: zoom === 1 ? '0 auto' : undefined }}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={imgRef}
               src={`/api/files/${pano.filename}`}
               alt="파노라마"
-              className="max-w-full block"
+              className="w-full block"
               draggable={false}
               crossOrigin="anonymous"
             />
