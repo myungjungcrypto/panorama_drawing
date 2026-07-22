@@ -58,6 +58,7 @@ ALIASES = {
     "porcelain crown": "Crown",
     "ceramic bridge": "Bridge",
     # DENTEX (진단 라벨)
+    "decay": "Caries",
     "caries": "Caries",
     "deep caries": "Deep Caries",
     "periapical lesion": "Periapical Lesion",
@@ -137,19 +138,26 @@ def find_coco_jsons(root: Path):
 
 
 def convert_coco(json_path: Path, img_index, out_images: Path, out_labels: Path, tag: str):
-    """COCO JSON → YOLO 변환. 변환된 이미지 수 반환"""
+    """COCO JSON → YOLO 변환. 변환된 이미지 수 반환.
+    DENTEX 계층 형식(categories_3 = 진단 라벨)도 지원."""
     with open(json_path) as f:
         coco = json.load(f)
 
+    # DENTEX: 진단 라벨은 categories_3 / category_id_3에 있음
+    cats_key, ann_cat_field = "categories", "category_id"
+    if "categories_3" in coco:
+        cats_key, ann_cat_field = "categories_3", "category_id_3"
+        print(f"  (DENTEX 계층 형식 감지 — 진단 라벨 사용)")
+
     cat_map = {}
-    for cat in coco.get("categories", []):
+    for cat in coco.get(cats_key, []):
         cat_map[cat["id"]] = map_class(str(cat.get("name", "")))
 
     images = {img["id"]: img for img in coco.get("images", [])}
     labels_per_image = {}
 
     for ann in coco.get("annotations", []):
-        cls_idx = cat_map.get(ann.get("category_id"))
+        cls_idx = cat_map.get(ann.get(ann_cat_field))
         if cls_idx is None:
             continue
         img = images.get(ann.get("image_id"))
