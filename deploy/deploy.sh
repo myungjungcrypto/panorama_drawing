@@ -105,6 +105,25 @@ log_info "Step 6: 의존성 설치 및 빌드 중... (수 분 소요될 수 있�
 cd "$APP_DIR"
 
 sudo -u "$APP_USER" npm ci 2>&1 | tail -3
+
+# 환경변수 파일 생성 (없을 경우) — DB 경로 + 세션 시크릿
+if [ ! -f "$APP_DIR/.env" ]; then
+  log_info "환경변수 파일(.env) 생성 중..."
+  SESSION_SECRET=$(openssl rand -hex 32)
+  sudo -u "$APP_USER" tee "$APP_DIR/.env" > /dev/null <<ENVEOF
+DATABASE_URL="file:./prod.db"
+SESSION_SECRET="$SESSION_SECRET"
+ENVEOF
+  log_info ".env 생성 완료"
+fi
+
+# 업로드 디렉토리 생성
+sudo -u "$APP_USER" mkdir -p "$APP_DIR/uploads"
+
+# DB 마이그레이션 적용
+log_info "DB 마이그레이션 적용 중..."
+sudo -u "$APP_USER" npx prisma migrate deploy 2>&1 | tail -3
+
 sudo -u "$APP_USER" npm run build 2>&1 | tail -5
 
 log_info "빌드 완료"

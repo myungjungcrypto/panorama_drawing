@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// 회원: pending(승인 대기) → annotator(승인됨) / admin(관리자)
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  passwordHash String
+  name         String
+  role         String       @default("pending") // pending | annotator | admin
+  createdAt    DateTime     @default(now())
+  cases        Case[]
+  panoramas    Panorama[]
+  annotations  Annotation[]
+}
+
+// 케이스: 치료 전/후 파노라마 묶음 (치료 전만 있으면 in_progress)
+model Case {
+  id              String           @id @default(cuid())
+  userId          String
+  user            User             @relation(fields: [userId], references: [id])
+  title           String // 식별용 메모/차트번호 (환자 이름 금지)
+  status          String           @default("in_progress") // in_progress | completed | reviewed
+  isIdeal         Boolean? // 관리자 큐레이션: 이상적 치료 여부 (null = 미분류)
+  note            String?
+  createdAt       DateTime         @default(now())
+  panoramas       Panorama[]
+  treatmentLabels TreatmentLabel[]
+}
+
+// 파노라마 이미지
+model Panorama {
+  id          String       @id @default(cuid())
+  caseId      String
+  case        Case         @relation(fields: [caseId], references: [id])
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  phase       String // before | after
+  filename    String // uploads/ 내 저장 파일명
+  width       Int
+  height      Int
+  takenAt     DateTime? // 촬영일
+  annotStatus String       @default("none") // none | in_progress | done
+  createdAt   DateTime     @default(now())
+  annotations Annotation[]
+}
+
+// bbox 어노테이션 (정규화 좌표 0~1)
+model Annotation {
+  id         String   @id @default(cuid())
+  panoramaId String
+  panorama   Panorama @relation(fields: [panoramaId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  type       String // tooth (FDI 치식) | condition (상태)
+  label      String // FDI 번호 "11"~"48" 또는 "Crown" | "Implant" | "Missing teeth" 등
+  x          Float // 좌상단 x (0~1)
+  y          Float // 좌상단 y (0~1)
+  w          Float
+  h          Float
+  source     String   @default("manual") // manual | ai
+  createdAt  DateTime @default(now())
+}
+
+// 치료 전/후 diff에서 도출된 치아별 치료 라벨
+model TreatmentLabel {
+  id           String  @id @default(cuid())
+  caseId       String
+  case         Case    @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  fdi          Int
+  beforeStatus String // present | missing | crown | implant | bridge
+  afterStatus  String
+  treatment    String // 도출된 치료 행위 (예: 임플란트 식립, 크라운 수복, 발치)
+  confirmed    Boolean @default(false) // 어노테이터 확인 여부
+
+  @@unique([caseId, fdi])
+}

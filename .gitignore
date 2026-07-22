@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# database & uploads
+*.db
+*.db-journal
+/uploads
+
+# 에디터별 스킬 복사본 (prisma init이 생성, .claude만 유지)
+/.agents
+/.windsurf
+/.claude/skills
+skills-lock.json

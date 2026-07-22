@@ -23,9 +23,10 @@ export default function Home() {
           <h1 className="text-lg font-bold text-gray-800">치과 파노라마 3D 시각화</h1>
           <p className="text-xs text-gray-400">파노라마 X-ray 기반 치아 상태 시각화 상담 도구</p>
         </div>
-        <div className="text-xs text-gray-400">
-          Dental Panorama 3D Viewer
-        </div>
+        <nav className="flex gap-3 items-center text-sm">
+          <a href="/cases" className="text-blue-600 hover:underline">어노테이션 작업</a>
+          <a href="/login" className="text-gray-500 hover:underline">로그인</a>
+        </nav>
       </header>
 
       {/* Main content */}
