@@ -38,7 +38,7 @@ function createIncisorGeometry(dim: { w: number; h: number; d: number }): THREE.
   }
 
   const geo = new THREE.LatheGeometry(profile, SEG);
-  scaleAxis(geo, 'x', dim.d / dim.w * 0.5);
+  scaleAxis(geo, 'z', dim.d / dim.w * 0.5);
 
   const pos = geo.getAttribute('position') as THREE.BufferAttribute;
   for (let i = 0; i < pos.count; i++) {
@@ -73,7 +73,7 @@ function createCanineGeometry(dim: { w: number; h: number; d: number }): THREE.B
   }
 
   const geo = new THREE.LatheGeometry(profile, SEG);
-  scaleAxis(geo, 'x', dim.d / dim.w * 0.65);
+  scaleAxis(geo, 'z', dim.d / dim.w * 0.65);
 
   return geo;
 }
@@ -135,8 +135,8 @@ function createPremolarGeometry(dim: { w: number; h: number; d: number }): THREE
       const t = Math.min(1, (y - maxY * 0.2) / (maxY * 0.8));
 
       // 협측/설측 교두
-      const buccalDist = Math.sqrt(x * x + (z + dim.d * 0.14) ** 2);
-      const lingualDist = Math.sqrt(x * x + (z - dim.d * 0.14) ** 2);
+      const buccalDist = Math.sqrt(x * x + (z - dim.d * 0.14) ** 2);
+      const lingualDist = Math.sqrt(x * x + (z + dim.d * 0.14) ** 2);
       const cuspR = dim.w * 0.26;
 
       const buccalInf = Math.max(0, 1 - buccalDist / cuspR);
@@ -170,10 +170,10 @@ function createMolarGeometry(dim: { w: number; h: number; d: number }): THREE.Bu
   const maxY = dim.h * 0.55;
 
   const cusps = [
-    { cx:  dim.w * 0.15, cz: -dim.d * 0.16, h: 0.12, r: dim.w * 0.24 },
-    { cx: -dim.w * 0.15, cz: -dim.d * 0.16, h: 0.11, r: dim.w * 0.23 },
-    { cx:  dim.w * 0.14, cz:  dim.d * 0.16, h: 0.10, r: dim.w * 0.23 },
-    { cx: -dim.w * 0.14, cz:  dim.d * 0.16, h: 0.09, r: dim.w * 0.22 },
+    { cx:  dim.w * 0.15, cz:  dim.d * 0.16, h: 0.12, r: dim.w * 0.24 },
+    { cx: -dim.w * 0.15, cz:  dim.d * 0.16, h: 0.11, r: dim.w * 0.23 },
+    { cx:  dim.w * 0.14, cz: -dim.d * 0.16, h: 0.10, r: dim.w * 0.23 },
+    { cx: -dim.w * 0.14, cz: -dim.d * 0.16, h: 0.09, r: dim.w * 0.22 },
   ];
 
   for (let i = 0; i < pos.count; i++) {

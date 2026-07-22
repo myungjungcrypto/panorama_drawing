@@ -173,14 +173,16 @@ function ToothMeshInner({ fdi, geometry }: { fdi: number; geometry: THREE.Buffer
     e.stopPropagation();
   };
 
-  // Upper teeth (quadrants 1,2): flip upside down so roots point up, crowns face down
+  // 상악(1,2분면): 순측(+Z) 방향을 유지한 채 치관이 아래를 향하도록
+  // 순측 축 기준 롤(Z축 π) 회전. Euler XYZ 순서상 [0, rotY, π] = Ry(rotY)·Rz(π)
+  // → 롤 먼저 적용 후 악궁 yaw 적용이라 순측 방향이 뒤틀리지 않음.
   const isUpper = info.quadrant <= 2;
-  const rotationX = isUpper ? Math.PI : 0;
+  const rotationZ = isUpper ? Math.PI : 0;
 
   return (
     <group
       position={[pos.x, pos.y, pos.z]}
-      rotation={[rotationX, pos.rotationY, 0]}
+      rotation={[0, pos.rotationY, rotationZ]}
     >
       {/* 현재 상태 메시 */}
       <mesh

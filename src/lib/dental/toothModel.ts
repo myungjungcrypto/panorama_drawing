@@ -15,7 +15,7 @@ import { useState, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { useGLTF } from '@react-three/drei';
 import { TOOTH_MAP } from './toothData';
-import { TOOTH_DIMENSIONS } from './toothGeometry';
+import { TOOTH_WIDTHS } from './archGeometry';
 
 export const TEETH_MODEL_URL = '/models/teeth.glb';
 
@@ -94,9 +94,10 @@ export function useRealToothGeometry(fdi: number): THREE.BufferGeometry | null {
     geo.translate(-center.x, -center.y, -center.z);
 
     const info = TOOTH_MAP[fdi];
-    // 치관 전용 모델 기준 배율 (치근 포함 모델이면 1.5~1.8로 조정)
-    const targetH = info ? TOOTH_DIMENSIONS[info.type].h * 1.0 : 0.4;
-    const scale = size.y > 0 ? targetH / size.y : 1;
+    // 폭(근원심, X) 기준 균일 스케일 — 악궁 배치 간격(TOOTH_WIDTHS)에 맞춰
+    // 치간 간격이 채워지고 대구치도 실제 비율대로 커짐
+    const targetW = info ? TOOTH_WIDTHS[info.position] * 0.92 : 0.4;
+    const scale = size.x > 0 ? targetW / size.x : 1;
     geo.scale(scale, scale, scale);
     geo.computeVertexNormals();
 

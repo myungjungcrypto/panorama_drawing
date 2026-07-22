@@ -13,7 +13,7 @@ interface ArchConfig {
 const UPPER_ARCH: ArchConfig = { width: 3.0, depth: 2.6, gumY: 0.8 };
 const LOWER_ARCH: ArchConfig = { width: 2.7, depth: 2.3, gumY: -0.8 };
 
-const TOOTH_WIDTHS: Record<number, number> = {
+export const TOOTH_WIDTHS: Record<number, number> = {
   1: 0.52,
   2: 0.42,
   3: 0.48,
@@ -73,7 +73,10 @@ function computeToothPositions(
         ? (side === 'right' ? 1 : 2)
         : (side === 'right' ? 4 : 3);
       const fdi = quadrant * 10 + pos;
-      const rotY = side === 'right' ? -angle : angle;
+      // 순측/협측(+Z)이 악궁 바깥 법선을 향하도록 하는 yaw.
+      // angle(접선 방향)은 우측 끝~좌측 끝까지 연속(31°~149°)이므로
+      // 법선 = angle - 90° 하나의 식으로 양쪽 모두 커버됨.
+      const rotY = angle - Math.PI / 2;
 
       // Tooth center Y: positioned so crown emerges from gum ridge
       // Upper teeth: crown hangs DOWN from gumY, so tooth center is below gumY
