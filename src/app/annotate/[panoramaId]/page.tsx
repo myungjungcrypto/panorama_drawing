@@ -23,11 +23,10 @@ interface PanoInfo {
   annotStatus: string;
 }
 
-const FDI_ROWS = [
-  [18, 17, 16, 15, 14, 13, 12, 11],
-  [21, 22, 23, 24, 25, 26, 27, 28],
-  [48, 47, 46, 45, 44, 43, 42, 41],
-  [31, 32, 33, 34, 35, 36, 37, 38],
+// 실제 치식표 배열: 상악/하악 각 1줄, 정중선 기준 좌우 분할 (환자 기준 우측이 화면 왼쪽)
+const FDI_ARCHES: { label: string; left: number[]; right: number[] }[] = [
+  { label: '상악', left: [18, 17, 16, 15, 14, 13, 12, 11], right: [21, 22, 23, 24, 25, 26, 27, 28] },
+  { label: '하악', left: [48, 47, 46, 45, 44, 43, 42, 41], right: [31, 32, 33, 34, 35, 36, 37, 38] },
 ];
 
 const CONDITION_LABELS = [
@@ -57,6 +56,21 @@ function boxColor(box: Box): string {
 
 let keySeq = 0;
 const nextKey = () => `box-${++keySeq}-${Math.random().toString(36).slice(2, 7)}`;
+
+function ToothPaletteButton({ fdi, active, onClick }: { fdi: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 min-w-0 py-1.5 rounded text-[10px] font-bold cursor-pointer ${
+        active
+          ? 'bg-green-600 text-white'
+          : 'bg-gray-50 text-gray-600 hover:bg-green-50 border border-gray-200'
+      }`}
+    >
+      {fdi}
+    </button>
+  );
+}
 
 export default function AnnotatePage({ params }: { params: Promise<{ panoramaId: string }> }) {
   const { panoramaId } = use(params);
@@ -436,7 +450,7 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
         </div>
 
         {/* 라벨 팔레트 */}
-        <aside className="w-[260px] shrink-0 bg-white border-l border-gray-200 p-4 overflow-y-auto">
+        <aside className="w-[380px] shrink-0 bg-white border-l border-gray-200 p-4 overflow-y-auto">
           <div className="flex gap-1 mb-3">
             <button
               onClick={() => setMode('tooth')}
@@ -457,23 +471,37 @@ export default function AnnotatePage({ params }: { params: Promise<{ panoramaId:
           </div>
 
           {mode === 'tooth' ? (
-            <div className="space-y-1.5">
-              <p className="text-[10px] text-gray-400">치아 번호 선택 후 드래그로 박스를 그리세요.</p>
-              {FDI_ROWS.map((row, i) => (
-                <div key={i} className="grid grid-cols-8 gap-0.5">
-                  {row.map((fdi) => (
-                    <button
-                      key={fdi}
-                      onClick={() => pickLabel('tooth', String(fdi))}
-                      className={`py-1 rounded text-[10px] font-bold cursor-pointer ${
-                        mode === 'tooth' && currentLabel === String(fdi)
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-50 text-gray-600 hover:bg-green-50 border border-gray-200'
-                      }`}
-                    >
-                      {fdi}
-                    </button>
-                  ))}
+            <div>
+              <p className="text-[10px] text-gray-400 mb-2">치아 번호 선택 후 드래그로 박스를 그리세요.</p>
+              <div className="flex justify-between text-[9px] text-gray-400 px-1 mb-0.5">
+                <span>R (환자 우측)</span>
+                <span>L (환자 좌측)</span>
+              </div>
+              {FDI_ARCHES.map((arch, i) => (
+                <div key={arch.label}>
+                  {i === 1 && <div className="border-t border-dashed border-gray-300 my-1.5" />}
+                  <div className="flex items-center gap-0.5">
+                    {arch.left.map((fdi) => (
+                      <ToothPaletteButton
+                        key={fdi}
+                        fdi={fdi}
+                        active={mode === 'tooth' && currentLabel === String(fdi)}
+                        onClick={() => pickLabel('tooth', String(fdi))}
+                      />
+                    ))}
+                    <div className="w-px self-stretch bg-gray-400 mx-0.5" />
+                    {arch.right.map((fdi) => (
+                      <ToothPaletteButton
+                        key={fdi}
+                        fdi={fdi}
+                        active={mode === 'tooth' && currentLabel === String(fdi)}
+                        onClick={() => pickLabel('tooth', String(fdi))}
+                      />
+                    ))}
+                  </div>
+                  <div className={`text-center text-[9px] text-gray-400 ${i === 0 ? 'mt-0.5' : 'mt-0.5'}`}>
+                    {arch.label}
+                  </div>
                 </div>
               ))}
             </div>
