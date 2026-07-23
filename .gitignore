@@ -64,3 +64,6 @@ skills-lock.json
 /training
 /merged-tooth-numbering*
 /.venv
+/Dental-X-Ray-Panoramic-Dataset*
+/yolov8*.pt
+/pred_*.jpg

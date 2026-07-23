@@ -78,6 +78,8 @@ ALIASES = {
     "rct": "Root Canal Treatment",
     "bridge": "Bridge",
     "abutment": "abutment",
+    "permanent teeth": None,  # 정상 치아 — 치식 모델 담당이므로 상태 모델에서 제외
+    "primary teeth": None,
     "post - core": None,
     "post-core": None,
     "retained root": None,
