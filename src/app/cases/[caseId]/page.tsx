@@ -29,6 +29,7 @@ interface CaseDetail {
   status: string;
   isIdeal: boolean | null;
   note: string | null;
+  shareToken: string | null;
   user: { name: string };
   panoramas: PanoramaItem[];
   treatmentLabels: TreatmentLabelItem[];
@@ -297,6 +298,61 @@ export default function CaseDetailPage({ params }: { params: Promise<{ caseId: s
                 ))}
               </tbody>
             </table>
+          )}
+        </div>
+
+        {/* 환자용 공유 링크 */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-700">환자용 3D 공유 링크</h2>
+            {caseData.shareToken ? (
+              <button
+                onClick={async () => {
+                  await fetch(`/api/cases/${caseId}/share`, { method: 'DELETE' });
+                  load();
+                }}
+                className="px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs cursor-pointer hover:bg-red-100"
+              >
+                공유 해제
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  const res = await fetch(`/api/cases/${caseId}/share`, { method: 'POST' });
+                  const data = await res.json();
+                  if (!res.ok) alert(data.error || '생성 실패');
+                  load();
+                }}
+                disabled={!caseData.panoramas.some((p) => p.annotStatus === 'done')}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400"
+              >
+                링크 생성
+              </button>
+            )}
+          </div>
+          {caseData.shareToken ? (
+            <div className="flex gap-2 items-center">
+              <input
+                readOnly
+                value={`${typeof window !== 'undefined' ? window.location.origin : ''}/share/${caseData.shareToken}`}
+                className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-600"
+                onFocus={(e) => e.target.select()}
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/share/${caseData.shareToken}`);
+                  alert('링크가 복사되었습니다. 환자에게 문자/카톡으로 전달하세요.');
+                }}
+                className="px-3 py-2 bg-gray-100 text-gray-600 rounded-lg text-xs cursor-pointer hover:bg-gray-200 shrink-0"
+              >
+                복사
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-gray-400">
+              링크를 생성하면 환자가 로그인 없이 자신의 3D 치아 상태와 치료 계획을 볼 수 있습니다.
+              (X-ray 원본은 포함되지 않으며, 링크는 언제든 해제할 수 있습니다)
+            </p>
           )}
         </div>
 

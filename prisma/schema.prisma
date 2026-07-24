@@ -63,9 +63,23 @@ model Case {
   status          String           @default("in_progress") // in_progress | completed | reviewed
   isIdeal         Boolean? // 관리자 큐레이션: 이상적 치료 여부 (null = 미분류)
   note            String?
+  shareToken      String?          @unique // 환자용 공개 공유 링크 토큰 (null = 비공개)
   createdAt       DateTime         @default(now())
   panoramas       Panorama[]
   treatmentLabels TreatmentLabel[]
+}
+
+// 광고 배너 (관리자 관리)
+model Banner {
+  id        String   @id @default(cuid())
+  title     String
+  subtitle  String?
+  linkUrl   String
+  imageUrl  String? // 외부 이미지 URL (선택)
+  position  String   @default("community") // community | home
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
 }
 
 // 파노라마 이미지

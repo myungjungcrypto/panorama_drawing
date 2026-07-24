@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import BannerSlot from '@/components/BannerSlot';
 
 interface PostItem {
   id: string;
@@ -74,6 +75,8 @@ export default function CommunityPage() {
       </header>
 
       <main className="max-w-4xl mx-auto p-6">
+        <BannerSlot position="community" />
+
         {/* 카테고리 탭 */}
         <div className="flex gap-1 mb-4">
           {CATEGORIES.map((c) => (
