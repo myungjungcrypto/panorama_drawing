@@ -27,23 +27,51 @@ import sys
 from pathlib import Path
 from collections import Counter
 
-# ===== 통합 클래스 (YOLO 인덱스 순서 — 앱 src/lib/dental/conditionClasses.ts와 일치해야 함) =====
-CLASSES = [
-    "Crown",
-    "Implant",
-    "Missing teeth",
-    "Filling",
-    "Root Canal Treatment",
-    "abutment",
-    "Caries",
-    "Deep Caries",
-    "Periapical Lesion",
-    "Impacted Tooth",
-    "Bridge",
+# ===== 클래스 체계 =====
+# condition11: 앱 중심의 11개 축소 체계 (src/lib/dental/conditionClasses.ts와 일치)
+# roboflow31: 기존 배포 모델과 동일한 celldetection 31클래스 체계
+#             (라벨 폐기 없이 공개 데이터를 흡수 — 성능 재현/향상 실험용)
+CONDITION11 = [
+    "Crown", "Implant", "Missing teeth", "Filling", "Root Canal Treatment",
+    "abutment", "Caries", "Deep Caries", "Periapical Lesion", "Impacted Tooth", "Bridge",
 ]
+
+ROBOFLOW31 = [
+    "Bone Loss", "Caries", "Crown", "Cyst", "Filling", "Fracture teeth",
+    "Implant", "Malaligned", "Mandibular Canal", "Missing teeth",
+    "Periapical lesion", "Permanent Teeth", "Primary teeth", "Retained root",
+    "Root Canal Treatment", "Root Piece", "Root resorption", "Supra Eruption",
+    "TAD", "abutment", "attrition", "bone defect", "gingival former",
+    "impacted tooth", "maxillary sinus", "metal band", "orthodontic brackets",
+    "permanent retainer", "plating", "post - core", "wire",
+]
+
+# 기본값 (main에서 --scheme에 따라 재설정)
+CLASSES = CONDITION11
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
 
-# 소스별 클래스 이름 → 통합 클래스 매핑 (소문자 비교, None = 제외)
+# roboflow31 체계용 매핑: 31클래스는 그대로 유지 + 공개 데이터 라벨을 31개 안으로 흡수
+ALIASES_ROBOFLOW31 = {
+    **{c.lower(): c for c in ROBOFLOW31},
+    # OralXrays-9 → 31클래스 체계
+    "apical periodontitis": "Periapical lesion",
+    "dental caries": "Caries",
+    "decay": "Caries",
+    "wisdom tooth": None,      # 사랑니 자체는 병소가 아님
+    "missing tooth": "Missing teeth",
+    "dental filling": "Filling",
+    "root canal filling": "Root Canal Treatment",
+    "dental implant": "Implant",
+    "porcelain crown": "Crown",
+    "ceramic bridge": None,    # 31클래스에 브릿지 없음
+    # DENTEX → 31클래스 체계
+    "deep caries": "Caries",
+    "periapical lesion": "Periapical lesion",
+    "impacted": "impacted tooth",
+    "impacted tooth": "impacted tooth",
+}
+
+# condition11 체계용: 소스별 클래스 이름 → 통합 클래스 매핑 (소문자 비교, None = 제외)
 ALIASES = {
     # 통합 클래스 자기 자신
     **{c.lower(): c for c in CLASSES},
@@ -283,7 +311,21 @@ def main():
     parser.add_argument("--output", default="condition_merged", help="출력 디렉토리")
     parser.add_argument("--val-ratio", type=float, default=0.1)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--scheme",
+        choices=["condition11", "roboflow31"],
+        default="condition11",
+        help="클래스 체계: condition11(앱 축소형) | roboflow31(기존 모델과 동일, 라벨 폐기 없음)",
+    )
     args = parser.parse_args()
+
+    # 클래스 체계 선택
+    global CLASSES, CLASS_TO_IDX, ALIASES
+    if args.scheme == "roboflow31":
+        CLASSES = ROBOFLOW31
+        CLASS_TO_IDX = {c: i for i, c in enumerate(CLASSES)}
+        ALIASES = ALIASES_ROBOFLOW31
+    print(f"클래스 체계: {args.scheme} ({len(CLASSES)}개 클래스)")
 
     out_root = Path(args.output)
     if out_root.exists():

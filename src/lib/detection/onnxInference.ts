@@ -32,6 +32,30 @@ let conditionSession: ort.InferenceSession | null = null;
 let numberingClassNames: Record<number, string> = {};
 let conditionClassNames: Record<number, string> = {};
 
+// WebGPU 우선, 미지원 브라우저는 WASM 폴백 (고해상도/대형 모델 추론 속도 대폭 향상)
+async function createSession(url: string): Promise<ort.InferenceSession | null> {
+  try {
+    const session = await ort.InferenceSession.create(url, {
+      executionProviders: ['webgpu'],
+      graphOptimizationLevel: 'all',
+    });
+    console.log(`[ONNX] ${url} → WebGPU 가속`);
+    return session;
+  } catch {
+    // WebGPU 미지원/실패 → WASM
+  }
+  try {
+    const session = await ort.InferenceSession.create(url, {
+      executionProviders: ['wasm'],
+      graphOptimizationLevel: 'all',
+    });
+    console.log(`[ONNX] ${url} → WASM`);
+    return session;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadModel(
   onProgress?: (msg: string) => void
 ): Promise<boolean> {
@@ -43,15 +67,11 @@ export async function loadModel(
       numberingClassNames = await numClassRes.json();
     }
 
-    try {
-      numberingSession = await ort.InferenceSession.create('/onnx/tooth_numbering.onnx', {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      });
+    numberingSession = await createSession('/onnx/tooth_numbering.onnx');
+    if (numberingSession) {
       onProgress?.('치아 번호 모델 로딩 완료');
-    } catch {
+    } else {
       console.warn('치아 번호 모델 없음 - 상태 감지 모델만 사용');
-      numberingSession = null;
     }
 
     // Load condition detection model
@@ -61,15 +81,11 @@ export async function loadModel(
       conditionClassNames = await condClassRes.json();
     }
 
-    try {
-      conditionSession = await ort.InferenceSession.create('/onnx/dental_detector.onnx', {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      });
+    conditionSession = await createSession('/onnx/dental_detector.onnx');
+    if (conditionSession) {
       onProgress?.('상태 감지 모델 로딩 완료');
-    } catch {
+    } else {
       console.warn('상태 감지 모델 없음');
-      conditionSession = null;
     }
 
     if (!numberingSession && !conditionSession) {
@@ -90,25 +106,42 @@ export function isModelLoaded(): boolean {
   return numberingSession !== null || conditionSession !== null;
 }
 
+// 모델의 고정 입력 크기 자동 감지 (실패 시 기본 640)
+function getModelInputSize(session: ort.InferenceSession, fallback = 640): number {
+  try {
+    const name = session.inputNames[0];
+    // onnxruntime-web 버전에 따라 inputMetadata 형태가 다름
+    const meta = (session as unknown as {
+      inputMetadata?: Record<string, { dimensions?: number[]; shape?: number[] }> |
+        Array<{ dimensions?: number[]; shape?: number[] }>;
+    }).inputMetadata;
+    const m = Array.isArray(meta) ? meta[0] : meta?.[name];
+    const dims = m?.dimensions ?? m?.shape;
+    if (dims && dims.length === 4 && typeof dims[2] === 'number' && dims[2] > 32) {
+      return dims[2];
+    }
+  } catch { /* 폴백 사용 */ }
+  return fallback;
+}
+
 export async function detectTeeth(
   imageElement: HTMLImageElement,
-  inputSize: number = 640,
+  _inputSize: number = 640,
   confidenceThreshold: number = 0.25
 ): Promise<{ result: Record<number, ToothStatus>; detections: Detection[] }> {
   const allDetections: Detection[] = [];
 
-  // Prepare image tensor
-  const { tensor, padX, padY } = prepareImage(imageElement, inputSize);
-
   // Step 1: Run tooth numbering model (if available)
   let toothDetections: Detection[] = [];
   if (numberingSession) {
+    const size = getModelInputSize(numberingSession);
+    const { tensor, padX, padY } = prepareImage(imageElement, size);
     const inputName = numberingSession.inputNames[0];
     const results = await numberingSession.run({ [inputName]: tensor });
     const output = results[numberingSession.outputNames[0]];
-    toothDetections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, numberingClassNames);
+    toothDetections = parseYoloOutput(output, size, confidenceThreshold, padX, padY, numberingClassNames);
     toothDetections = normalizeToothDetections(toothDetections);
-    console.log(`[치아번호] ${toothDetections.length}개 감지:`,
+    console.log(`[치아번호] 입력 ${size}px, ${toothDetections.length}개 감지:`,
       toothDetections.map(d => `#${d.className}(${(d.confidence * 100).toFixed(0)}%)`)
     );
     allDetections.push(...toothDetections);
@@ -117,11 +150,13 @@ export async function detectTeeth(
   // Step 2: Run condition detection model (if available)
   let conditionDetections: Detection[] = [];
   if (conditionSession) {
+    const size = getModelInputSize(conditionSession);
+    const { tensor, padX, padY } = prepareImage(imageElement, size);
     const inputName = conditionSession.inputNames[0];
     const results = await conditionSession.run({ [inputName]: tensor });
     const output = results[conditionSession.outputNames[0]];
-    conditionDetections = parseYoloOutput(output, inputSize, confidenceThreshold, padX, padY, conditionClassNames);
-    console.log(`[상태감지] ${conditionDetections.length}개 감지:`,
+    conditionDetections = parseYoloOutput(output, size, confidenceThreshold, padX, padY, conditionClassNames);
+    console.log(`[상태감지] 입력 ${size}px, ${conditionDetections.length}개 감지:`,
       conditionDetections.map(d => `${d.className}(${(d.confidence * 100).toFixed(0)}%)`)
     );
     allDetections.push(...conditionDetections);

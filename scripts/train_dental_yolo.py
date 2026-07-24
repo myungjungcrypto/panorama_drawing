@@ -70,16 +70,17 @@ def train_model(
     imgsz: int = 640,
     batch: int = 16,
     model_size: str = "n",
+    weights: str = None,
 ):
-    """YOLOv8 모델 학습"""
+    """YOLOv8 모델 학습 (weights 지정 시 해당 체크포인트에서 미세조정)"""
     from ultralytics import YOLO
 
     print("\n" + "=" * 60)
     print("2단계: 모델 학습")
     print("=" * 60)
 
-    # YOLOv8 nano (브라우저 추론에 적합한 경량 모델)
-    model_name = f"yolov8{model_size}.pt"
+    # weights가 지정되면 그 체크포인트에서 시작 (2단계 미세조정용)
+    model_name = weights if weights else f"yolov8{model_size}.pt"
     print(f"기본 모델: {model_name}")
     print(f"에포크: {epochs}, 이미지 크기: {imgsz}, 배치: {batch}")
 
@@ -209,6 +210,12 @@ def main():
         default=None,
         help="이미 다운로드된 데이터셋 경로",
     )
+    parser.add_argument(
+        "--weights",
+        type=str,
+        default=None,
+        help="미세조정 시작점 .pt 경로 (지정 시 model-size 무시)",
+    )
 
     args = parser.parse_args()
 
@@ -233,6 +240,7 @@ def main():
             imgsz=args.imgsz,
             batch=args.batch,
             model_size=args.model_size,
+            weights=args.weights,
         )
 
     if args.step in ("all", "export"):
