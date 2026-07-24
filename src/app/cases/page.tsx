@@ -79,6 +79,7 @@ export default function CasesPage() {
         </div>
         <nav className="flex gap-3 text-sm items-center">
           <Link href="/" className="text-gray-500 hover:underline">3D 뷰어</Link>
+          <Link href="/community" className="text-gray-500 hover:underline">커뮤니티</Link>
           <Link href="/admin" className="text-gray-500 hover:underline">관리자</Link>
           <button onClick={logout} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xs">
             로그아웃

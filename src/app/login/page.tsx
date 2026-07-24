@@ -27,6 +27,8 @@ function LoginForm() {
 
       if (data.role === 'pending') {
         router.push('/pending');
+      } else if (data.role === 'member') {
+        router.push(searchParams.get('from') || '/');
       } else {
         router.push(searchParams.get('from') || '/cases');
       }

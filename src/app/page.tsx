@@ -24,8 +24,10 @@ export default function Home() {
           <p className="text-xs text-gray-400">파노라마 X-ray 기반 치아 상태 시각화 상담 도구</p>
         </div>
         <nav className="flex gap-3 items-center text-sm">
-          <a href="/cases" className="text-blue-600 hover:underline">어노테이션 작업</a>
+          <a href="/community" className="text-blue-600 hover:underline">커뮤니티</a>
+          <a href="/cases" className="text-gray-500 hover:underline">어노테이션</a>
           <a href="/login" className="text-gray-500 hover:underline">로그인</a>
+          <a href="/privacy" className="text-gray-400 hover:underline text-xs">처리방침</a>
         </nav>
       </header>
 

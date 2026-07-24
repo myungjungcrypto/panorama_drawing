@@ -21,7 +21,7 @@ export async function PATCH(request: Request) {
   if (!session) return unauthorized();
 
   const { userId, role } = await request.json();
-  if (!userId || !['pending', 'annotator', 'admin'].includes(role)) {
+  if (!userId || !['pending', 'member', 'annotator', 'admin'].includes(role)) {
     return Response.json({ error: '잘못된 요청입니다.' }, { status: 400 });
   }
   if (userId === session.userId && role !== 'admin') {

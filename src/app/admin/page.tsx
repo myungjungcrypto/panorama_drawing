@@ -13,7 +13,8 @@ interface AdminUser {
 }
 
 const ROLE_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: '승인 대기', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  pending: { label: '승인 대기(레거시)', color: 'bg-yellow-50 text-yellow-700 border-yellow-200' },
+  member: { label: '일반 회원', color: 'bg-gray-50 text-gray-600 border-gray-200' },
   annotator: { label: '어노테이터', color: 'bg-green-50 text-green-700 border-green-200' },
   admin: { label: '관리자', color: 'bg-blue-50 text-blue-700 border-blue-200' },
 };
@@ -127,23 +128,23 @@ export default function AdminPage() {
                         <td className="px-4 py-3 text-right text-gray-600">{u._count.annotations}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex gap-1 justify-end">
-                            {u.role === 'pending' && (
+                            {(u.role === 'pending' || u.role === 'member') && (
                               <button
                                 onClick={() => changeRole(u.id, 'annotator')}
                                 className="px-2 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 cursor-pointer"
                               >
-                                승인
+                                어노테이터 승인
                               </button>
                             )}
                             {u.role === 'annotator' && (
                               <button
-                                onClick={() => changeRole(u.id, 'pending')}
+                                onClick={() => changeRole(u.id, 'member')}
                                 className="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs hover:bg-gray-300 cursor-pointer"
                               >
                                 권한 해제
                               </button>
                             )}
-                            {u.role === 'pending' && (
+                            {(u.role === 'pending' || u.role === 'member') && (
                               <button
                                 onClick={() => removeUser(u.id, u.email)}
                                 className="px-2 py-1 bg-red-50 text-red-600 border border-red-200 rounded text-xs hover:bg-red-100 cursor-pointer"

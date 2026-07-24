@@ -38,6 +38,7 @@ function UploadSlot({ caseId, phase, onDone }: { caseId: string; phase: 'before'
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [takenAt, setTakenAt] = useState('');
+  const [consented, setConsented] = useState(false);
 
   const handleFile = async (file: File) => {
     setUploading(true);
@@ -83,12 +84,28 @@ function UploadSlot({ caseId, phase, onDone }: { caseId: string; phase: 'before'
           className="text-xs border border-gray-300 rounded px-2 py-1"
         />
       </div>
-      <label className="inline-block px-4 py-2 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 cursor-pointer">
+      {/* 개인정보 동의 */}
+      <label className="flex items-start gap-2 text-left text-[11px] text-gray-500 mb-3 mx-auto max-w-xs cursor-pointer">
+        <input
+          type="checkbox"
+          checked={consented}
+          onChange={(e) => setConsented(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span>
+          영상에 환자 성명·차트번호 등 <strong>식별정보가 없음</strong>을 확인했으며,
+          소속 기관에서 활용에 필요한 절차를 완료했습니다.{' '}
+          <a href="/privacy" target="_blank" className="text-blue-500 underline">처리방침</a>
+        </span>
+      </label>
+      <label className={`inline-block px-4 py-2 text-white text-sm rounded-lg ${
+        consented ? 'bg-blue-500 hover:bg-blue-600 cursor-pointer' : 'bg-gray-300 cursor-not-allowed'
+      }`}>
         {uploading ? '업로드 중...' : '파일 선택'}
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          disabled={uploading}
+          disabled={uploading || !consented}
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
           className="hidden"
         />
@@ -195,6 +212,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ caseId: s
         </div>
         <nav className="flex gap-3 text-sm items-center">
           <Link href="/cases" className="text-blue-600 hover:underline">← 케이스 목록</Link>
+          {caseData.panoramas.some((p) => p.annotStatus === 'done') && (
+            <Link
+              href={`/community/new?caseId=${caseId}`}
+              className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700"
+            >
+              커뮤니티에 공유
+            </Link>
+          )}
           <button onClick={deleteCase} className="text-red-400 hover:text-red-600 text-xs cursor-pointer">
             삭제
           </button>

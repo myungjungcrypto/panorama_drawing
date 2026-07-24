@@ -7,17 +7,51 @@ datasource db {
   provider = "sqlite"
 }
 
-// 회원: pending(승인 대기) → annotator(승인됨) / admin(관리자)
+// 회원: member(일반, 자동가입) → annotator(어노테이션 승인) / admin(관리자)
 model User {
   id           String       @id @default(cuid())
   email        String       @unique
   passwordHash String
   name         String
-  role         String       @default("pending") // pending | annotator | admin
+  role         String       @default("member") // pending(레거시) | member | annotator | admin
   createdAt    DateTime     @default(now())
   cases        Case[]
   panoramas    Panorama[]
   annotations  Annotation[]
+  posts        Post[]
+  comments     Comment[]
+}
+
+// 커뮤니티 게시글
+model Post {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  category  String // case(케이스 토론) | seminar(세미나) | job(구인구직) | free(자유)
+  title     String
+  content   String
+  caseId    String? // 케이스 공유 (3D 모식도만 공개, 원본 X-ray 비공개)
+  // 카테고리별 부가 정보
+  jobRole   String? // 구인구직: dentist | hygienist | staff
+  region    String? // 구인구직: 지역
+  eventDate DateTime? // 세미나: 일시
+  link      String? // 세미나 신청 링크 등
+  views     Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  comments  Comment[]
+
+  @@index([category, createdAt])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime @default(now())
 }
 
 // 케이스: 치료 전/후 파노라마 묶음 (치료 전만 있으면 in_progress)

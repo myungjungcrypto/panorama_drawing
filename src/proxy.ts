@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 // 보호 라우트 프리픽스 → 최소 역할
-const PROTECTED: { prefix: string; minRole: 'annotator' | 'admin' }[] = [
+const PROTECTED: { prefix: string; minRole: 'member' | 'annotator' | 'admin' }[] = [
   { prefix: '/admin', minRole: 'admin' },
   { prefix: '/annotate', minRole: 'annotator' },
   { prefix: '/cases', minRole: 'annotator' },
+  { prefix: '/community/new', minRole: 'member' },
 ];
 
-const ROLE_LEVEL: Record<string, number> = { pending: 0, annotator: 1, admin: 2 };
+const ROLE_LEVEL: Record<string, number> = { pending: 0, member: 1, annotator: 2, admin: 3 };
 
 async function readSessionRole(req: NextRequest): Promise<string | null> {
   const token = req.cookies.get('session')?.value;
@@ -47,5 +48,5 @@ export default async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/annotate/:path*', '/cases/:path*'],
+  matcher: ['/admin/:path*', '/annotate/:path*', '/cases/:path*', '/community/new'],
 };
