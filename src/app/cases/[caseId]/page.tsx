@@ -350,8 +350,15 @@ export default function CaseDetailPage({ params }: { params: Promise<{ caseId: s
             </div>
           ) : (
             <p className="text-xs text-gray-400">
-              링크를 생성하면 환자가 로그인 없이 자신의 3D 치아 상태와 치료 계획을 볼 수 있습니다.
-              (X-ray 원본은 포함되지 않으며, 링크는 언제든 해제할 수 있습니다)
+              {caseData.panoramas.some((p) => p.annotStatus === 'done') ? (
+                <>링크를 생성하면 환자가 로그인 없이 자신의 3D 치아 상태와 치료 계획을 볼 수 있습니다.
+                (X-ray 원본은 포함되지 않으며, 링크는 언제든 해제할 수 있습니다)</>
+              ) : (
+                <span className="text-orange-500">
+                  ⚠ 어노테이션을 완료하면 링크를 생성할 수 있습니다.
+                  3D 모식도는 어노테이션 데이터로 그려지기 때문입니다.
+                </span>
+              )}
             </p>
           )}
         </div>
