@@ -63,7 +63,7 @@ export default function CommunityPage() {
           <p className="text-xs text-gray-400">케이스 토론 · 세미나 · 구인구직</p>
         </div>
         <nav className="flex gap-3 text-sm items-center">
-          <Link href="/" className="text-gray-500 hover:underline">3D 뷰어</Link>
+          <Link href="/viewer" className="text-gray-500 hover:underline">3D 뷰어</Link>
           <Link href="/cases" className="text-gray-500 hover:underline">어노테이션</Link>
           <Link
             href="/community/new"

@@ -18,7 +18,7 @@ export default async function PendingPage() {
         </p>
         <div className="flex gap-2 justify-center">
           <Link
-            href="/"
+            href="/viewer"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
           >
             3D 상담 도구

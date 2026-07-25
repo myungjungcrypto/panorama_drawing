@@ -1,107 +1,133 @@
-'use client';
+import Link from 'next/link';
+import { prisma } from '@/lib/db';
+import { getSession } from '@/lib/session';
 
-import dynamic from 'next/dynamic';
-import DentalChart2D from '@/components/DentalChart2D';
-import ImageUploader from '@/components/ImageUploader';
-import ToothInfoPanel from '@/components/ToothInfoPanel';
+export const dynamic = 'force-dynamic';
 
-const DentalArch3D = dynamic(() => import('@/components/DentalArch3D'), {
-  ssr: false,
-  loading: () => (
-    <div className="flex items-center justify-center h-full bg-gray-50 rounded-xl">
-      <div className="text-gray-400 text-sm">3D 뷰 로딩 중...</div>
-    </div>
-  ),
-});
+const CATEGORY_KO: Record<string, string> = {
+  case: '케이스', seminar: '세미나', job: '구인구직', free: '자유',
+};
 
-export default function Home() {
+export default async function LandingPage() {
+  const session = await getSession();
+
+  let recentPosts: { id: string; category: string; title: string; createdAt: Date }[] = [];
+  try {
+    recentPosts = await prisma.post.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: { id: true, category: true, title: true, createdAt: true },
+    });
+  } catch {
+    // DB 미초기화 등 — 랜딩은 항상 떠야 함
+  }
+
   return (
-    <div className="flex flex-col h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
-        <div>
-          <h1 className="text-lg font-bold text-gray-800">치과 파노라마 3D 시각화</h1>
-          <p className="text-xs text-gray-400">파노라마 X-ray 기반 치아 상태 시각화 상담 도구</p>
+      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🦷</span>
+          <span className="font-bold text-gray-800">난발치</span>
+          <span className="text-xs text-gray-400 hidden sm:inline">치과 AI 상담 · 커뮤니티</span>
         </div>
         <nav className="flex gap-3 items-center text-sm">
-          <a href="/community" className="text-blue-600 hover:underline">커뮤니티</a>
-          <a href="/cases" className="text-gray-500 hover:underline">어노테이션</a>
-          <a href="/login" className="text-gray-500 hover:underline">로그인</a>
-          <a href="/privacy" className="text-gray-400 hover:underline text-xs">처리방침</a>
+          <Link href="/community" className="text-gray-600 hover:text-blue-600">커뮤니티</Link>
+          <Link href="/viewer" className="text-gray-600 hover:text-blue-600">3D 상담 도구</Link>
+          {session ? (
+            <Link href={session.role === 'admin' || session.role === 'annotator' ? '/cases' : '/community'}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700">
+              {session.name}님
+            </Link>
+          ) : (
+            <>
+              <Link href="/login" className="text-gray-600 hover:text-blue-600">로그인</Link>
+              <Link href="/register" className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700">
+                가입하기
+              </Link>
+            </>
+          )}
         </nav>
       </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden p-4 gap-4">
-        {/* Left panel: Upload + Chart */}
-        <div className="w-[560px] shrink-0 flex flex-col gap-4 overflow-y-auto">
-          <ImageUploader />
-          <DentalChart2D />
+      {/* Hero */}
+      <section className="bg-gradient-to-b from-white to-gray-50 px-6 py-16 text-center">
+        <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+          파노라마 한 장으로,<br className="sm:hidden" /> 환자가 이해하는 상담
+        </h1>
+        <p className="mt-4 text-gray-500 max-w-xl mx-auto text-sm sm:text-base">
+          AI가 파노라마 X-ray를 분석해 치아 상태를 3D 모식도로 그려줍니다.
+          치료 계획을 시각적으로 설명하고, 환자에게 링크로 공유하세요.
+        </p>
+        <div className="mt-8 flex gap-3 justify-center">
+          <Link href="/viewer"
+            className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-sm">
+            3D 상담 도구 사용해보기
+          </Link>
+          <Link href="/community"
+            className="px-6 py-3 bg-white text-gray-700 border border-gray-200 rounded-xl text-sm font-semibold hover:bg-gray-50">
+            커뮤니티 둘러보기
+          </Link>
         </div>
+      </section>
 
-        {/* Center: 3D Viewport */}
-        <div className="flex-1 min-w-0">
-          <DentalArch3D />
+      {/* Features */}
+      <section className="max-w-5xl mx-auto px-6 py-12 grid sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <div className="text-2xl mb-3">🤖</div>
+          <h3 className="font-bold text-gray-800 mb-1.5">AI 파노라마 분석</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            브라우저에서 바로 실행되는 AI가 치식과 치아 상태(크라운·임플란트·상실 등)를 자동 감지합니다.
+            영상은 외부로 전송되지 않습니다.
+          </p>
         </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <div className="text-2xl mb-3">🦷</div>
+          <h3 className="font-bold text-gray-800 mb-1.5">3D 치료 계획 시뮬레이션</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            현재 상태와 치료 후 모습을 3D로 비교하고, 환자에게는 로그인 없는
+            공유 링크로 전달할 수 있습니다.
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+          <div className="text-2xl mb-3">💬</div>
+          <h3 className="font-bold text-gray-800 mb-1.5">치과인 커뮤니티</h3>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            인터랙티브 3D 케이스로 토론하고, 세미나 정보와 구인구직 소식을
+            나누는 치과 전문가 공간입니다.
+          </p>
+        </div>
+      </section>
 
-        {/* Right panel: Info */}
-        <div className="w-[220px] shrink-0 flex flex-col gap-4">
-          <ToothInfoPanel />
-
-          {/* Legend */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3">범례</h3>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-4 h-4 rounded bg-[#f5f0e8] border border-gray-300" />
-                <span className="text-gray-600">존재</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-4 h-4 rounded border-2 border-dashed border-red-300 bg-red-50" />
-                <span className="text-gray-600">상실</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-4 h-4 rounded bg-[#8899aa] border border-gray-400" />
-                <span className="text-gray-600">임플란트</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-4 h-4 rounded bg-[#ffd700] border border-yellow-400" />
-                <span className="text-gray-600">크라운</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-4 h-4 rounded bg-[#81c784] border border-emerald-400" />
-                <span className="text-gray-600">브릿지</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-4 h-4 rounded bg-blue-400" />
-                <span className="text-gray-600">선택됨</span>
-              </div>
-              <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
-                <p className="text-[10px] text-gray-400 mb-1.5">치료 계획</p>
-                <div className="flex items-center gap-2 text-xs">
-                  <div className="w-4 h-4 rounded border-2 border-dashed border-indigo-300 bg-indigo-50 animate-pulse" />
-                  <span className="text-gray-600">계획 오버레이</span>
-                </div>
-              </div>
-            </div>
+      {/* Recent posts */}
+      {recentPosts.length > 0 && (
+        <section className="max-w-3xl mx-auto px-6 pb-12">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-gray-800">커뮤니티 최신 글</h2>
+            <Link href="/community" className="text-xs text-blue-600 hover:underline">전체 보기 →</Link>
           </div>
-
-          {/* Instructions */}
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">사용법</h3>
-            <ul className="text-xs text-gray-500 space-y-1">
-              <li>1. 파노라마 업로드</li>
-              <li>2. &quot;AI 자동 분석&quot; 클릭</li>
-              <li>3. 결과 확인 후 수동 보정</li>
-              <li>4. 치아 선택 → 치료 계획 설정</li>
-              <li>5. &quot;비교&quot; 보기로 현재/계획 비교</li>
-              <li className="mt-1 pt-1 border-t border-gray-100">- 차트/3D 클릭 → 치아 선택</li>
-              <li>- 우측 패널 → 상태 변경/치료 계획</li>
-              <li>- 드래그 → 3D 회전</li>
-            </ul>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm divide-y divide-gray-50">
+            {recentPosts.map((p) => (
+              <Link key={p.id} href={`/community/${p.id}`} className="flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-sm">
+                <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded shrink-0">
+                  {CATEGORY_KO[p.category] ?? p.category}
+                </span>
+                <span className="text-gray-700 truncate">{p.title}</span>
+              </Link>
+            ))}
           </div>
+        </section>
+      )}
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 px-6 py-6 text-center text-xs text-gray-400">
+        <div className="flex gap-4 justify-center mb-2">
+          <Link href="/privacy" className="hover:underline">개인정보처리방침</Link>
+          <Link href="/community" className="hover:underline">커뮤니티</Link>
+          <Link href="/viewer" className="hover:underline">3D 상담 도구</Link>
         </div>
-      </div>
+        <p>난발치 — 치과 AI 상담 · 커뮤니티 플랫폼</p>
+      </footer>
     </div>
   );
 }

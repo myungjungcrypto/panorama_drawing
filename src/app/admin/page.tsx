@@ -207,7 +207,7 @@ export default function AdminPage() {
         </div>
         <nav className="flex gap-3 text-sm items-center">
           <Link href="/cases" className="text-blue-600 hover:underline">케이스 목록</Link>
-          <Link href="/" className="text-gray-500 hover:underline">3D 뷰어</Link>
+          <Link href="/viewer" className="text-gray-500 hover:underline">3D 뷰어</Link>
           <a
             href="/api/admin/export"
             className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700"
