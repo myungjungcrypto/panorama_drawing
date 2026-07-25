@@ -317,6 +317,11 @@ def main():
         default="condition11",
         help="클래스 체계: condition11(앱 축소형) | roboflow31(기존 모델과 동일, 라벨 폐기 없음)",
     )
+    parser.add_argument(
+        "--augment-compress",
+        action="store_true",
+        help="학습 이미지마다 저화질 사본 추가 (메신저 압축 이미지 대응 — JPEG 품질 저하 + 축소)",
+    )
     args = parser.parse_args()
 
     # 클래스 체계 선택
@@ -397,6 +402,38 @@ def main():
             shutil.move(str(img_src), img_dir / img_src.name)
 
     shutil.rmtree(out_root / "_staging")
+
+    # 메신저 압축 스타일 증강: train 이미지마다 저화질 사본 생성 (라벨은 동일 — 정규화 좌표라 그대로 유효)
+    if args.augment_compress:
+        try:
+            from PIL import Image
+        except ImportError:
+            print("PIL 필요: pip install pillow")
+            sys.exit(1)
+        rng = random.Random(args.seed + 1)
+        img_dir = out_root / "train" / "images"
+        lbl_dir = out_root / "train" / "labels"
+        originals = [p for p in img_dir.iterdir() if p.suffix.lower() in IMG_EXTS]
+        added = 0
+        for src in originals:
+            lbl = lbl_dir / (src.stem + ".txt")
+            if not lbl.exists():
+                continue
+            try:
+                img = Image.open(src).convert("RGB")
+                # 카톡 전송 수준: 긴 변 1000~1600px 축소 + JPEG 품질 55~75
+                target_w = rng.randint(1000, 1600)
+                if img.width > target_w:
+                    ratio = target_w / img.width
+                    img = img.resize((target_w, max(1, int(img.height * ratio))), Image.BILINEAR)
+                quality = rng.randint(55, 75)
+                new_name = f"compressed_{src.stem}.jpg"
+                img.save(img_dir / new_name, "JPEG", quality=quality)
+                shutil.copy2(lbl, lbl_dir / f"compressed_{src.stem}.txt")
+                added += 1
+            except OSError:
+                continue
+        print(f"\n압축 증강: 저화질 사본 {added}장 추가 (train 전용)")
 
     # data.yaml
     (out_root / "data.yaml").write_text(
