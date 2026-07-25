@@ -45,7 +45,7 @@ export default function Home() {
         </div>
 
         {/* Right panel: Info */}
-        <div className="w-[220px] shrink-0 flex flex-col gap-4">
+        <div className="w-[220px] shrink-0 flex flex-col gap-4 overflow-y-auto">
           <ToothInfoPanel />
 
           {/* Legend */}
