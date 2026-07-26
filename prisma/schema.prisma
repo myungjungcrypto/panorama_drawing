@@ -69,6 +69,16 @@ model Case {
   treatmentLabels TreatmentLabel[]
 }
 
+// 뷰어 스냅샷 공유 — /viewer의 현재 상태를 즉시 환자에게 링크로 (어노테이션 불필요)
+model Snapshot {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  teeth     String // 치아 상태 JSON (fdi → status)
+  plan      String // 치료 계획 JSON (fdi → treatment)
+  createdAt DateTime @default(now())
+}
+
 // 광고 배너 (관리자 관리)
 model Banner {
   id        String   @id @default(cuid())

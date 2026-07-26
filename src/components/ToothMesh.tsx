@@ -3,6 +3,7 @@
 import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { ThreeEvent, useFrame } from '@react-three/fiber';
+import { Html } from '@react-three/drei';
 import { createToothGeometry } from '@/lib/dental/toothGeometry';
 import { TOOTH_MAP } from '@/lib/dental/toothData';
 import { TOOTH_3D_POSITIONS } from '@/lib/dental/archGeometry';
@@ -87,27 +88,41 @@ function getPlannedAppearance(status: TreatmentStatus) {
   }
 }
 
-// 펄싱 오버레이 컴포넌트
+const TREATMENT_BADGE: Record<TreatmentStatus, { label: string; bg: string }> = {
+  implant: { label: '임플란트 예정', bg: '#3b82f6' },
+  crown: { label: '크라운 예정', bg: '#d97706' },
+  bridge: { label: '브릿지 예정', bg: '#059669' },
+};
+
+// 펄싱 오버레이 컴포넌트 (강조 버전: 발광 + 크기 펄스)
 function PlannedOverlayMesh({ geometry, targetStatus }: { geometry: THREE.BufferGeometry; targetStatus: TreatmentStatus }) {
   const materialRef = useRef<THREE.MeshPhysicalMaterial>(null);
+  const meshRef = useRef<THREE.Mesh>(null);
   const planned = getPlannedAppearance(targetStatus);
 
   useFrame(({ clock }) => {
+    const t = clock.elapsedTime * 2.5;
     if (materialRef.current) {
-      materialRef.current.opacity = 0.45 + 0.15 * Math.sin(clock.elapsedTime * 2);
+      materialRef.current.opacity = 0.55 + 0.25 * Math.sin(t);
+      materialRef.current.emissiveIntensity = 1.2 + 0.8 * Math.sin(t);
+    }
+    if (meshRef.current) {
+      const s = 1.07 + 0.02 * Math.sin(t);
+      meshRef.current.scale.setScalar(s);
     }
   });
 
   return (
-    <mesh geometry={geometry} scale={1.05}>
+    <mesh ref={meshRef} geometry={geometry} scale={1.07}>
       <meshPhysicalMaterial
         ref={materialRef}
         color={planned.color}
-        emissive={planned.emissive}
+        emissive={planned.color}
+        emissiveIntensity={1.2}
         metalness={planned.metalness}
         roughness={planned.roughness}
         transparent
-        opacity={0.45}
+        opacity={0.55}
         depthWrite={false}
         side={THREE.FrontSide}
       />
@@ -221,7 +236,23 @@ function ToothMeshInner({ fdi, geometry }: { fdi: number; geometry: THREE.Buffer
 
         {/* 치료 계획 오버레이 (비교 모드) */}
         {showPlannedOverlay && (
-          <PlannedOverlayMesh geometry={geometry} targetStatus={treatmentStatus} />
+          <>
+            <PlannedOverlayMesh geometry={geometry} targetStatus={treatmentStatus} />
+            {/* 계획 배지: 치관 방향 위에 표시 (그룹 회전으로 상악은 자동으로 아래쪽) */}
+            <Html
+              position={[0, 0.55, 0]}
+              center
+              distanceFactor={7}
+              style={{ pointerEvents: 'none' }}
+            >
+              <div
+                className="px-1.5 py-0.5 rounded text-[9px] font-bold text-white whitespace-nowrap shadow"
+                style={{ background: TREATMENT_BADGE[treatmentStatus].bg }}
+              >
+                {TREATMENT_BADGE[treatmentStatus].label}
+              </div>
+            </Html>
+          </>
         )}
       </group>
     </group>

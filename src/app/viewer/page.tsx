@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import DentalChart2D from '@/components/DentalChart2D';
 import ImageUploader from '@/components/ImageUploader';
 import ToothInfoPanel from '@/components/ToothInfoPanel';
+import ShareSnapshotButton from '@/components/ShareSnapshotButton';
 
 const DentalArch3D = dynamic(() => import('@/components/DentalArch3D'), {
   ssr: false,
@@ -24,6 +25,7 @@ export default function Home() {
           <p className="text-xs text-gray-400">파노라마 X-ray 기반 치아 상태 시각화 상담 도구</p>
         </div>
         <nav className="flex gap-3 items-center text-sm">
+          <ShareSnapshotButton />
           <a href="/community" className="text-blue-600 hover:underline">커뮤니티</a>
           <a href="/cases" className="text-gray-500 hover:underline">어노테이션</a>
           <a href="/login" className="text-gray-500 hover:underline">로그인</a>

@@ -228,8 +228,19 @@ export default function DentalArch3D() {
   const setEditMode = useCalibration((s) => s.setEditMode);
   const loadCalibration = useCalibration((s) => s.load);
   const [isAdmin, setIsAdmin] = useState(process.env.NODE_ENV === 'development');
+  const [autoFlip, setAutoFlip] = useState(false);
 
   useEffect(() => { loadCalibration(); }, [loadCalibration]);
+
+  // 전/후 자동 전환: 현재 ↔ 치료후를 1.3초 간격으로 교차 (상담용)
+  useEffect(() => {
+    if (!autoFlip) return;
+    const id = setInterval(() => {
+      const current = useTeethState.getState().viewMode;
+      setViewMode(current === 'planned' ? 'current' : 'planned');
+    }, 1300);
+    return () => clearInterval(id);
+  }, [autoFlip, setViewMode]);
 
   // 조정 도구는 관리자에게만 노출 (로컬 개발 환경에서는 항상 노출)
   useEffect(() => {
@@ -296,9 +307,9 @@ export default function DentalArch3D() {
               {(['current', 'compare', 'planned'] as ViewMode[]).map((mode) => (
                 <button
                   key={mode}
-                  onClick={() => setViewMode(mode)}
+                  onClick={() => { setAutoFlip(false); setViewMode(mode); }}
                   className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
-                    ${viewMode === mode
+                    ${viewMode === mode && !autoFlip
                       ? 'bg-indigo-500 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
                     }`}
@@ -306,6 +317,17 @@ export default function DentalArch3D() {
                   {{ current: '현재', planned: '계획', compare: '비교' }[mode]}
                 </button>
               ))}
+              <button
+                onClick={() => setAutoFlip(!autoFlip)}
+                className={`px-2 py-1 text-xs rounded cursor-pointer transition-colors
+                  ${autoFlip
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                  }`}
+                title="현재와 치료 후 모습을 자동으로 번갈아 보여줍니다"
+              >
+                {autoFlip ? '⏸ 정지' : '▶ 전/후 재생'}
+              </button>
               <span className="mx-1 text-gray-300">|</span>
             </>
           )}
