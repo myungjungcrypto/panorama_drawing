@@ -105,7 +105,8 @@ log_info "저장소 준비 완료"
 log_info "Step 6: 의존성 설치 및 빌드 중... (수 분 소요될 수 있습니다)"
 cd "$APP_DIR"
 
-sudo -u "$APP_USER" npm ci 2>&1 | tail -3
+# nice: 운영 중인 다른 프로세스(PM2 봇 등)에 CPU 양보 — 서버 얼어붙음 방지
+sudo -u "$APP_USER" nice -n 10 npm ci --no-audit --no-fund 2>&1 | tail -3
 
 # 환경변수 파일 생성 (없을 경우) — DB 경로 + 세션 시크릿
 if [ ! -f "$APP_DIR/.env" ]; then
@@ -125,7 +126,8 @@ sudo -u "$APP_USER" mkdir -p "$APP_DIR/uploads"
 log_info "DB 마이그레이션 적용 중..."
 sudo -u "$APP_USER" npx prisma migrate deploy 2>&1 | tail -3
 
-sudo -u "$APP_USER" npm run build 2>&1 | tail -5
+# 메모리 상한 + 낮은 우선순위로 빌드 — 다른 서비스와 동시 운영 시 시스템 보호
+sudo -u "$APP_USER" env NODE_OPTIONS="--max-old-space-size=3072" nice -n 10 npm run build 2>&1 | tail -5
 
 log_info "빌드 완료"
 
