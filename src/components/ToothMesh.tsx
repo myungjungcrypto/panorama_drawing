@@ -186,7 +186,8 @@ function ToothMeshInner({ fdi, geometry }: { fdi: number; geometry: THREE.Buffer
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation();
-    setSelectedTooth(fdi);
+    // 이미 선택된 치아를 다시 클릭하면 선택 해제 (캡처 시 선택색 혼동 방지)
+    setSelectedTooth(isSelected ? null : fdi);
   };
 
   const handleDoubleClick = (e: ThreeEvent<MouseEvent>) => {

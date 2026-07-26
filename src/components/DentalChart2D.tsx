@@ -52,7 +52,8 @@ function ToothCell({ fdi }: { fdi: number }) {
   return (
     <button
       onClick={() => {
-        setSelectedTooth(fdi);
+        // 재클릭 시 선택 해제
+        setSelectedTooth(isSelected ? null : fdi);
       }}
       onMouseEnter={() => setHoveredTooth(fdi)}
       onMouseLeave={() => setHoveredTooth(null)}

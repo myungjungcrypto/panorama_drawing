@@ -36,6 +36,16 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
+# =================== 동시 실행 방지 ===================
+# 배포 2개가 동시에 돌면 메모리 폭증 → 스왑 스래싱으로 서버가 얼어붙을 수 있음
+LOCK_FILE="/tmp/panorama-deploy.lock"
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+  log_error "다른 배포가 이미 실행 중입니다. 끝날 때까지 기다렸다가 다시 실행하세요."
+  log_error "(이전 배포가 죽었다고 확신하면: rm $LOCK_FILE 후 재시도)"
+  exit 1
+fi
+
 # =================== Step 1: 시스템 패키지 ===================
 log_info "Step 1: 시스템 패키지 업데이트 및 설치..."
 
