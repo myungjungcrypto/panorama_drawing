@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getSession } from '@/lib/session';
+import BannerSlot from '@/components/BannerSlot';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +98,11 @@ export default async function LandingPage() {
             나누는 치과 전문가 공간입니다.
           </p>
         </div>
+      </section>
+
+      {/* 광고 배너 (홈 위치) */}
+      <section className="max-w-3xl mx-auto px-6">
+        <BannerSlot position="home" />
       </section>
 
       {/* Recent posts */}
