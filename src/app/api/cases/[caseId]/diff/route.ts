@@ -1,39 +1,26 @@
 import { prisma } from '@/lib/db';
 import { requireRole, unauthenticated, unauthorized } from '@/lib/auth';
-import { computeCaseDiff } from '@/lib/annotationDiff';
+import { recomputeTreatmentLabels } from '@/lib/treatmentLabels';
 
+// 치료 내역 수동 재계산 (어노테이션 완료 시 자동 계산되지만 예비용으로 유지)
 export async function POST(request: Request, { params }: { params: Promise<{ caseId: string }> }) {
   const session = await requireRole('annotator');
   if (!session) return unauthenticated();
 
   const { caseId } = await params;
-  const c = await prisma.case.findUnique({
-    where: { id: caseId },
-    include: { panoramas: { include: { annotations: true } } },
-  });
+  const c = await prisma.case.findUnique({ where: { id: caseId } });
   if (!c) return Response.json({ error: '케이스를 찾을 수 없습니다.' }, { status: 404 });
   if (session.role !== 'admin' && c.userId !== session.userId) return unauthorized();
 
-  const before = c.panoramas.find((p) => p.phase === 'before');
-  const after = c.panoramas.find((p) => p.phase === 'after');
-  if (!before || !after) {
-    return Response.json({ error: '치료 전/후 파노라마가 모두 필요합니다.' }, { status: 400 });
+  const ok = await recomputeTreatmentLabels(caseId);
+  if (!ok) {
+    return Response.json(
+      { error: '치료 전/후 어노테이션이 모두 완료되어야 계산할 수 있습니다.' },
+      { status: 400 }
+    );
   }
-  if (before.annotStatus !== 'done' || after.annotStatus !== 'done') {
-    return Response.json({ error: '전/후 어노테이션이 모두 완료(done) 상태여야 합니다.' }, { status: 400 });
-  }
 
-  const labels = computeCaseDiff(before.annotations, after.annotations);
-
-  // 기존 라벨 교체
-  await prisma.$transaction([
-    prisma.treatmentLabel.deleteMany({ where: { caseId } }),
-    prisma.treatmentLabel.createMany({
-      data: labels.map((l) => ({ caseId, ...l })),
-    }),
-  ]);
-
-  return Response.json({ ok: true, count: labels.length });
+  return Response.json({ ok: true });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ caseId: string }> }) {

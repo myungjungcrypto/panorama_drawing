@@ -252,17 +252,17 @@ export default function CaseDetailPage({ params }: { params: Promise<{ caseId: s
               onClick={computeDiff}
               disabled={!bothAnnotated || computing}
               className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-semibold hover:bg-indigo-700 disabled:bg-gray-200 disabled:text-gray-400 cursor-pointer"
-              title={bothAnnotated ? '' : '전/후 어노테이션이 모두 완료되어야 합니다'}
+              title={bothAnnotated ? '전/후 어노테이션 차이에서 치료 내역을 다시 도출합니다' : '전/후 어노테이션이 모두 완료되어야 합니다'}
             >
-              {computing ? '계산 중...' : 'diff 계산'}
+              {computing ? '계산 중...' : '치료 내역 다시 계산'}
             </button>
           </div>
 
           {caseData.treatmentLabels.length === 0 ? (
             <p className="text-xs text-gray-400">
               {bothAnnotated
-                ? '"diff 계산"을 누르면 전/후 어노테이션 차이에서 치료 내역을 도출합니다.'
-                : '치료 전/후 파노라마의 어노테이션을 모두 완료하면 치료 내역을 계산할 수 있습니다.'}
+                ? '전/후 어노테이션에 차이가 없거나 아직 계산 전입니다. 어노테이션을 완료 처리하면 자동으로 계산됩니다.'
+                : '치료 전/후 파노라마의 어노테이션을 모두 완료하면 치료 내역이 자동으로 계산됩니다.'}
             </p>
           ) : (
             <table className="w-full text-xs">

@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db';
 import { requireRole, unauthenticated, unauthorized } from '@/lib/auth';
+import { recomputeTreatmentLabels } from '@/lib/treatmentLabels';
 
 async function getAccessiblePanorama(panoramaId: string, session: { userId: string; role: string }) {
   const pano = await prisma.panorama.findUnique({
@@ -101,5 +102,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ pano
     prisma.panorama.update({ where: { id: panoramaId }, data: { annotStatus } }),
   ]);
 
-  return Response.json({ ok: true, count: annotations.length });
+  // 전/후 모두 완료 상태면 치료 내역 자동 재계산 (확인된 항목은 내용 동일 시 유지)
+  const recomputed = await recomputeTreatmentLabels(pano.case.id);
+
+  return Response.json({ ok: true, count: annotations.length, treatmentsRecomputed: recomputed });
 }
